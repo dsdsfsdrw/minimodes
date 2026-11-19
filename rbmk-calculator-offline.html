@@ -1,0 +1,3222 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>РБМК Калькулятор NTM — офлайн</title>
+<style>
+:root{
+  --bg:#09090b;--bg2:#111113;--card:#18181b;--card2:#1f1f23;--line:#27272a;--line2:#3f3f46;
+  --tx:#f4f4f5;--tx2:#a1a1aa;--tx3:#71717a;--amber:#f59e0b;--amber2:#fbbf24;
+  --ok:#34d399;--warn:#fbbf24;--err:#f87171;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:var(--bg);color:var(--tx);font:14px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;min-height:100vh;display:flex;flex-direction:column}
+header{border-bottom:1px solid var(--line);background:linear-gradient(180deg,#1c1c1f,#131316)}
+.hwrap{max-width:1200px;margin:0 auto;padding:14px 16px;display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+.logo{width:40px;height:40px;border-radius:10px;background:rgba(245,158,11,.14);color:var(--amber);display:flex;align-items:center;justify-content:center;font-size:22px;flex:none}
+h1{font-size:17px;margin:0;line-height:1.2}
+h1 b{color:var(--amber);font-weight:700}
+.sub{font-size:11.5px;color:var(--tx2);margin:2px 0 0}
+.badge{margin-left:auto;font-size:11px;color:var(--ok);border:1px solid rgba(52,211,153,.35);background:rgba(52,211,153,.08);padding:4px 10px;border-radius:999px;white-space:nowrap}
+main{flex:1;width:100%;max-width:1200px;margin:0 auto;padding:16px}
+footer{border-top:1px solid var(--line);background:var(--bg2);margin-top:auto}
+.fwrap{max-width:1200px;margin:0 auto;padding:10px 16px;font-size:11px;color:var(--tx3);display:flex;flex-wrap:wrap;gap:8px}
+.tabs{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:14px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:4px}
+.tabs button{border:0;background:transparent;color:var(--tx2);font:inherit;font-size:13px;padding:8px 14px;border-radius:7px;cursor:pointer}
+.tabs button:hover{color:var(--tx);background:var(--card2)}
+.tabs button.on{background:#27272a;color:var(--amber2)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px}
+.card+.card{margin-top:12px}
+.card h3{margin:0 0 10px;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--tx3);font-weight:600}
+.grid2{display:grid;gap:12px}
+@media(min-width:900px){.grid2{grid-template-columns:1fr 380px}}
+.row{display:flex;flex-wrap:wrap;gap:10px}
+.field{display:flex;flex-direction:column;gap:5px;min-width:130px;flex:1}
+.field label{font-size:11.5px;color:var(--tx2)}
+.field small{font-size:10.5px;color:var(--tx3);line-height:1.35}
+input[type=number],input[type=text],select{background:#101012;border:1px solid var(--line2);color:var(--tx);border-radius:7px;padding:7px 9px;font:inherit;font-size:13px;width:100%}
+input:focus,select:focus{outline:1px solid var(--amber);border-color:var(--amber)}
+input[type=range]{width:100%;accent-color:var(--amber)}
+input[type=checkbox]{accent-color:var(--amber);width:15px;height:15px}
+.chk{display:flex;align-items:center;gap:8px;background:#101012;border:1px solid var(--line);border-radius:8px;padding:8px 10px;cursor:pointer;user-select:none}
+.chk span{font-size:12px;color:var(--tx2)}
+.chk small{display:block;font-size:10.5px;color:var(--tx3)}
+.btn{border:1px solid var(--line2);background:var(--card2);color:var(--tx);font:inherit;font-size:13px;padding:8px 14px;border-radius:8px;cursor:pointer;display:inline-flex;align-items:center;gap:7px}
+.btn:hover{border-color:var(--amber);color:var(--amber2)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn.primary{background:rgba(245,158,11,.14);border-color:rgba(245,158,11,.5);color:var(--amber2);font-weight:600}
+.btn.primary:hover{background:rgba(245,158,11,.22)}
+.btn.danger{border-color:rgba(248,113,113,.5);color:var(--err)}
+.btn.sm{padding:5px 10px;font-size:12px}
+.pbar{height:10px;background:#101012;border:1px solid var(--line);border-radius:999px;overflow:hidden}
+.pbar>div{height:100%;background:linear-gradient(90deg,#b45309,var(--amber));width:0%;transition:width .25s;border-radius:999px}
+.phase{font-size:12px;color:var(--amber2);margin:10px 0 4px;display:flex;justify-content:space-between;gap:10px}
+.phase .t{color:var(--tx3);font-family:var(--mono)}
+.log{background:#0c0c0e;border:1px solid var(--line);border-radius:8px;padding:8px 10px;height:190px;overflow-y:auto;font-family:var(--mono);font-size:11px;color:var(--tx2);line-height:1.55}
+.log .ok{color:var(--ok)}.log .err{color:var(--err)}
+ul.clean{list-style:none;margin:0;padding:0}
+ul.clean li{padding:5px 0;border-bottom:1px dashed #222225;font-size:12.5px;color:var(--tx2);display:flex;gap:8px;align-items:flex-start}
+ul.clean li:last-child{border-bottom:0}
+ul.clean li::before{content:"▸";color:var(--amber);flex:none}
+table.t{width:100%;border-collapse:collapse;font-size:12px}
+table.t th,table.t td{text-align:left;padding:5px 8px;border-bottom:1px solid #222225}
+table.t th{color:var(--tx3);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.04em}
+table.t td.num,table.t th.num{text-align:right;font-family:var(--mono)}
+.chkrow{display:flex;gap:8px;align-items:flex-start;background:#0e0e10;border:1px solid var(--line);border-radius:8px;padding:7px 10px;font-size:12px}
+.chkrow+.chkrow{margin-top:6px}
+.chkrow .st{flex:none;font-size:13px;width:16px;text-align:center}
+.chkrow .lb{color:var(--tx2)}
+.chkrow .vl{margin-left:auto;font-family:var(--mono);color:var(--tx3);font-size:11px;white-space:nowrap}
+.chkrow .dt{font-size:10.5px;color:var(--tx3);display:block}
+.verdict{margin:2px 0 10px;padding:10px 14px;border-radius:8px;font-weight:700;font-size:14px;border:1px solid;display:flex;align-items:center;gap:9px}
+.verdict .vic{flex:none;font-size:17px}
+.verdict.ok{background:rgba(52,211,153,.1);border-color:rgba(52,211,153,.4);color:var(--ok)}
+.verdict.wrn{background:rgba(251,191,36,.1);border-color:rgba(251,191,36,.4);color:var(--warn)}
+.verdict.bad{background:rgba(248,113,113,.1);border-color:rgba(248,113,113,.45);color:var(--err)}
+.ok{color:var(--ok)}.warn{color:var(--warn)}.err{color:var(--err)}.mut{color:var(--tx3)}
+canvas{display:block;border:1px solid var(--line);border-radius:8px;background:#0c0c0e;max-width:100%;touch-action:manipulation}
+.legend{display:flex;flex-wrap:wrap;gap:6px 12px;margin-top:8px;font-size:11px;color:var(--tx2)}
+.legend i{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:5px;vertical-align:-1px;border:1px solid rgba(255,255,255,.15)}
+.palette{display:flex;flex-wrap:wrap;gap:6px}
+.palette button{border:1px solid var(--line2);background:#101012;color:var(--tx2);border-radius:7px;padding:5px 9px;font-size:11.5px;cursor:pointer;display:flex;align-items:center;gap:6px}
+.palette button i{width:10px;height:10px;border-radius:3px;display:inline-block}
+.palette button.on{border-color:var(--amber);color:var(--amber2);background:rgba(245,158,11,.1)}
+.metrics{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.metric{background:#0e0e10;border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+.metric .v{font-family:var(--mono);font-size:16px;color:var(--tx)}
+.metric .l{font-size:10.5px;color:var(--tx3);margin-top:2px}
+.tip{position:fixed;pointer-events:none;background:#000d;border:1px solid var(--line2);border-radius:8px;padding:8px 10px;font-size:11px;color:var(--tx2);z-index:50;max-width:240px;display:none;line-height:1.5}
+.tip b{color:var(--tx)}
+.mono{font-family:var(--mono)}
+.hidden{display:none!important}
+.note{font-size:11.5px;color:var(--tx3);line-height:1.5}
+.note b{color:var(--tx2)}
+.kbd{font-family:var(--mono);background:#101012;border:1px solid var(--line2);border-radius:4px;padding:0 5px;font-size:11px}
+h2.sect{font-size:14px;margin:0 0 10px;color:var(--amber2)}
+.scrollx{overflow-x:auto}
+.tabpane{display:none}
+.tabpane.on{display:block}
+</style>
+</head>
+<body>
+<header>
+  <div class="hwrap">
+    <div class="logo">⚛</div>
+    <div>
+      <h1>РБМК Калькулятор <b>NTM</b></h1>
+      <p class="sub">генератор схем · редактор · живая симуляция — офлайн-версия, всё в одном файле</p>
+    </div>
+    <span class="badge" id="engineBadge">движок: v4 · структурный перебор · интернет не нужен</span>
+  </div>
+</header>
+
+<main>
+  <nav class="tabs" aria-label="Разделы">
+    <button data-tab="gen" class="on">Генератор</button>
+    <button data-tab="scheme">Схема</button>
+    <button data-tab="sim">Симуляция</button>
+    <button data-tab="report">Отчёт</button>
+    <button data-tab="help">Справка</button>
+  </nav>
+
+  <!-- ================= ГЕНЕРАТОР ================= -->
+  <section id="tab-gen" class="tabpane on">
+    <div class="grid2">
+      <div>
+        <div class="card">
+          <h3>Быстрые пресеты</h3>
+          <div class="row" id="presets"></div>
+        </div>
+        <div class="card">
+          <h3>Параметры поиска</h3>
+          <div class="row">
+            <div class="field"><label>Цель</label>
+              <select id="g-goal">
+                <option value="power" selected>Выработка энергии</option>
+                <option value="irradiation">Облучение предметов</option>
+                <option value="burnup">Отработка топлива</option>
+                <option value="low_rad">Минимум радиации</option>
+                <option value="stability">Максимальная стабильность</option>
+              </select></div>
+            <div class="field"><label>Режим</label>
+              <select id="g-mode">
+                <option value="normal" selected>Обычный (4 луча)</option>
+                <option value="reasim">ReaSim (8 лучей × 0.75)</option>
+              </select></div>
+            <div class="field"><label>Топливо по умолчанию</label>
+              <select id="g-fuel"></select></div>
+            <div class="field"><label>Размер: <b id="g-size-v" class="mono">9×9</b></label>
+              <input type="range" id="g-size" min="5" max="15" step="1" value="9"></div>
+            <div class="field"><label>Целевая температура: <b id="g-heat-v" class="mono">55%</b></label>
+              <input type="range" id="g-heat" min="0.1" max="0.9" step="0.05" value="0.55"></div>
+            <div class="field"><label>Плотность котлов</label>
+              <select id="g-boilers">
+                <option value="dense" selected>Плотно (все пустоты)</option>
+                <option value="sparse">Разреженно</option>
+                <option value="none">Без котлов</option>
+              </select></div>
+            <div class="field"><label>Лимит времени</label>
+              <select id="g-timecap">
+                <option value="60">1 минута</option>
+                <option value="180" selected>3 минуты</option>
+                <option value="300">5 минут</option>
+                <option value="600">10 минут</option>
+              </select></div>
+            <div class="field"><label>Seed</label>
+              <input type="number" id="g-seed" value="12345" min="0"></div>
+          </div>
+          <div class="row" style="margin-top:10px">
+            <div class="field"><label>Шаблонов в первой волне: <b id="g-starts-v" class="mono">220</b></label>
+              <input type="range" id="g-starts" min="40" max="400" step="10" value="220">
+              <small>первая волна перебора; далее движок идёт по всему банку и доводит схему, пока позволяет лимит времени</small></div>
+          </div>
+          <div class="row" style="margin-top:10px">
+            <label class="chk"><input type="checkbox" id="g-border" checked><span>Отражательный обод<small>сплошное кольцо отражателей по периметру</small></span></label>
+            <label class="chk"><input type="checkbox" id="g-auto"><span>Автостержни (АР)<small>выкл. = ручные СУЗ — управление с консоли РБМК (рекомендуется)</small></span></label>
+            <label class="chk"><input type="checkbox" id="g-src" checked><span>Пусковой источник нейтронов<small>колонна Po-Be в решётке — реактор стартует сам; без галочки — вы вставляете источник на ~1 с вручную (мощность выше, пуск ручной)</small></span></label>
+            <label class="chk"><input type="checkbox" id="g-ports" checked><span>Порты воды/пара<small>в ReaSim без них котлы не получают воду</small></span></label>
+            <label class="chk"><input type="checkbox" id="g-prune"><span>Чистка лишнего<small>замена бесполезных компонент графитом (может нарушить регулярный узор)</small></span></label>
+            <label class="chk"><input type="checkbox" id="g-verify" checked><span>Верификация<small>глушение, ксенон, возмущения, утечки</small></span></label>
+          </div>
+        </div>
+        <div class="card">
+          <h3>Прогресс</h3>
+          <div class="row" style="margin-bottom:8px">
+            <button class="btn primary" id="btn-generate">⚡ Сгенерировать схему</button>
+            <button class="btn danger" id="btn-stop" disabled>■ Стоп</button>
+          </div>
+          <div class="pbar"><div id="gen-bar"></div></div>
+          <div class="phase"><span id="gen-phase">Ожидание запуска</span><span class="t" id="gen-time"></span></div>
+          <div class="log" id="gen-log"></div>
+        </div>
+        <div class="card hidden" id="gen-result">
+          <h3>Результат</h3>
+          <div id="gen-verdict" class="verdict" style="display:none"></div>
+          <ul class="clean" id="gen-summary"></ul>
+          <div id="gen-checks" style="margin-top:10px"></div>
+          <div id="gen-calib" style="margin-top:10px"></div>
+          <div id="gen-top" style="margin-top:10px"></div>
+          <div id="gen-notes" style="margin-top:10px"></div>
+          <div class="row" style="margin-top:12px">
+            <button class="btn primary" id="btn-toscheme">Открыть в схеме и симуляции →</button>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="card">
+          <h3>Как это работает</h3>
+          <ul class="clean">
+            <li>Движок строит банк из всех регулярных шаблонов (решётки ТВЭЛ с шагом 2–3, графит между топливом, СУЗ регулярной сеткой, сплошное кольцо отражателей) — обычно 500–1300 штук.</li>
+            <li>Каждый шаблон честно симулируется; у каждого живого сразу проверяется гашение СУЗ — негасимый шаблон не может стать победителем.</li>
+            <li>Настройка «шаблонов на перебор» задаёт первую волну; дальше движок перебирает остаток банка и доводит финалиста точечным подбором заливки зазоров — пока не выйдет лимит времени. Всё выделенное время используется.</li>
+            <li>Если ни один шаблон не гасится — включается эскалация: уплотнённые сетки СУЗ в зазорах решётки.</li>
+            <li>Порты воды/пара — ровно одна пара снаружи, вплотную к отражателям; борных поглотителей внутри зоны нет.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Схема в веб-версии</h3>
+          <p class="note">Формат схем одинаков с онлайн-калькулятором: файлы JSON можно переносить туда-обратно (кнопки «Экспорт» / «Импорт» на вкладке «Схема»).</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= СХЕМА ================= -->
+  <section id="tab-scheme" class="tabpane">
+    <div class="grid2">
+      <div>
+        <div class="card">
+          <h3>Активная зона <span id="scheme-size" class="mono"></span></h3>
+          <div class="scrollx"><canvas id="grid" width="612" height="612" aria-label="Схема реактора"></canvas></div>
+          <div class="legend" id="legend"></div>
+          <p class="note" style="margin-top:8px">Порты воды/пара стоят снаружи, вплотную к отражателям (в игре подключаются к любой колонне РБМК снаружи). Барабан-сепаратор — над центром активной зоны. Колонка источника нейтронов обведена зелёным контуром.</p>
+          <div class="row" style="margin-top:10px">
+            <div class="field" style="max-width:190px"><label>Режим карты</label>
+              <select id="hm-mode">
+                <option value="blocks" selected>Колонны</option>
+                <option value="flux">Поток</option>
+                <option value="heat">Температура</option>
+                <option value="burnup">Выгорание</option>
+                <option value="xenon">Ксенон</option>
+              </select></div>
+            <div class="field" style="max-width:170px"><label>Размер сетки</label>
+              <select id="scheme-resize">
+                <option>7</option><option>9</option><option selected>11</option><option>13</option><option>15</option>
+              </select></div>
+            <div class="field" style="max-width:170px"><label>Режим игры</label>
+              <select id="scheme-mode">
+                <option value="normal" selected>Обычный</option>
+                <option value="reasim">ReaSim</option>
+              </select></div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="card">
+          <h3>Инструмент</h3>
+          <div class="palette" id="palette"></div>
+          <div class="row" style="margin-top:10px">
+            <div class="field"><label>Топливо для ТВЭЛ</label><select id="p-fuel"></select></div>
+            <div class="field"><label>Уровень СУЗ: <b id="p-level-v" class="mono">100%</b> (извлечён)</label>
+              <input type="range" id="p-level" min="0" max="1" step="0.01" value="1"></div>
+          </div>
+          <p class="note" style="margin-top:8px">ЛКМ — поставить колонну, ПКМ — стереть (пустышка). Колёсико не трогает схему.</p>
+        </div>
+        <div class="card">
+          <h3>Файлы</h3>
+          <div class="row">
+            <button class="btn" id="btn-export">⭳ Экспорт JSON</button>
+            <button class="btn" id="btn-import">⭱ Импорт JSON</button>
+            <button class="btn" id="btn-copy">⧉ Копировать JSON</button>
+            <button class="btn danger" id="btn-clear">✕ Очистить</button>
+          </div>
+          <input type="file" id="file-in" accept=".json,application/json" class="hidden">
+        </div>
+        <div class="card">
+          <h3>Легенда цветов</h3>
+          <div class="legend" id="legend2"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= СИМУЛЯЦИЯ ================= -->
+  <section id="tab-sim" class="tabpane">
+    <div class="card">
+      <h3>Живая симуляция</h3>
+      <div class="row" style="margin-bottom:10px">
+        <button class="btn primary" id="btn-play">▶ Пуск</button>
+        <button class="btn" id="btn-step">⏭ 20 тиков</button>
+        <button class="btn" id="btn-reset">⟲ Сброс</button>
+        <div class="field" style="max-width:230px"><label>Скорость: <b id="sim-speed-v" class="mono">40</b> тик/кадр</label>
+          <input type="range" id="sim-speed" min="1" max="200" step="1" value="40"></div>
+        <span class="note" style="align-self:end">тик ≈ 1/20 сек игры · сброс = холодный пуск (источник розжигает сам, либо импульс 1 сек)</span>
+      </div>
+      <div class="metrics" id="sim-metrics"></div>
+      <canvas id="chart" width="1160" height="240" style="margin-top:12px;width:100%" aria-label="График мощности и температуры"></canvas>
+      <p class="note" style="margin-top:8px"><span style="color:var(--amber)">—</span> мощность (пар-экв/тик, автограница) &nbsp; <span style="color:#ef4444">—</span> макс. сердечник, °C (автограница)</p>
+    </div>
+  </section>
+
+  <!-- ================= ОТЧЁТ ================= -->
+  <section id="tab-report" class="tabpane">
+    <div class="card">
+      <h3>Отчёт о последнем прогоне</h3>
+      <div class="row" style="margin-bottom:10px">
+        <button class="btn primary" id="btn-fullsim">⟳ Прогнать 400 тиков</button>
+        <span class="note" style="align-self:end" id="report-when">отчёта ещё нет</span>
+      </div>
+      <div id="report-body"><p class="note">Сгенерируйте схему или запустите симуляцию — здесь появятся метрики, предупреждения и карта пользы колонн.</p></div>
+    </div>
+  </section>
+
+  <!-- ================= СПРАВКА ================= -->
+  <section id="tab-help" class="tabpane">
+    <div class="grid2">
+      <div>
+        <div class="card">
+          <h3>Как пустить реактор</h3>
+          <ul class="clean">
+            <li><b>Источник нейтронов.</b> Генератор выделяет отдельную колонку-источник (Po-Be) ближе к центру зоны — на схеме она обведена зелёным контуром. Держите её при пуске около секунды; когда цепь стала самоподдерживающейся, канал можно заменить обычным ТВЭЛ. Без источника вставьте любой (Po-Be, Ra-Be) в канал ТВЭЛ на ~1 секунду и выньте.</li>
+            <li><b>Калибровка СУЗ.</b> Перед пуском выставьте ручные стержни на уровень из отчёта генератора (доля извлечения). Автостержни (АР) требуют калибровки — движок подбирает и стартовый уровень, и авто-цель по температуре; в игре они держат режим сами.</li>
+            <li><b>Консоль РБМК.</b> Ручными регуляторами (РР) удобно управлять прямо с консоли: движок по умолчанию ставит именно их. АР — опция для ленивых.</li>
+            <li><b>Замедлители.</b> Быстрые нейтроны от деления надо замедлять до тепловых — графит ставится только между топливными колоннами, на путях лучей. Замедлитель между отражателем и топливом бесполезен.</li>
+            <li><b>Отражатели.</b> Возвращают нейтроны в зону — топливо «пасует» нейтроны друг другу, и реакция живёт вечно (до выгорания). Обод должен быть сплошным: дыры = утечка радиации.</li>
+            <li><b>Контур.</b> В ReaSim котлам нужна вода (порт входа) и отбор пара (порт выхода). Порты ставятся СНАРУЗИ зоны, вплотную к отражателям — они подключаются к любой колонне РБМК снаружи и не занимают полезных клеток. В обычном режиме котлы работают и без портов.</li>
+          </ul>
+        </div>
+      </div>
+      <div>
+        <div class="card">
+          <h3>Про офлайн-версию</h3>
+          <ul class="clean">
+            <li>Весь движок (симулятор + генератор со структурным перебором) — внутри этого файла, на JavaScript в фоновом потоке. Ни интернета, ни установки, ни докачек: открыли файл — работает.</li>
+            <li>Работает в Chrome, Edge, Firefox, Opera, Safari (современных). Просто откройте файл двойным кликом.</li>
+            <li>Схемы сохраняются в JSON — совместимы с веб-версией калькулятора.</li>
+            <li>C++-версия на сервере быстрее раза в 3–5; JS-порт повторяет её алгоритм точно, просто дольше думает. Понижайте бюджет, если ждёте долго.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Горячие действия</h3>
+          <ul class="clean">
+            <li>ЛКМ по сетке — поставить колонну, ПКМ — стереть.</li>
+            <li>Кнопка «Стоп» на генераторе мгновенно убивает поиск.</li>
+            <li>«Прогнать 400 тиков» на вкладке «Отчёт» — длинный контрольный прогон текущей схемы.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="fwrap">
+    <span>Неофициальный инструмент для Hbm's Nuclear Tech Mod. Симуляция приближённая — проверяйте схемы в игре.</span>
+    <span style="margin-left:auto" class="mono">нейтроны не спят · офлайн-сборка</span>
+  </div>
+</footer>
+
+<div class="tip" id="tip"></div>
+
+<!-- =====================================================================
+     ДВИЖОК: точный JS-порт C++ engine.cpp (симулятор + генератор V3).
+     Работает в Web Worker, создаётся из этого блока через Blob URL.
+====================================================================== -->
+<script id="worker-src" type="text/plain">
+'use strict';
+// ---------------------------------------------------------------- колонны
+const KIND_IDS=['rod','rod_mod','rod_reasim','rod_reasim_mod','control','control_mod','control_auto','control_reasim','control_reasim_auto','blank','boiler','reflector','absorber','moderator','outgasser','storage','cooler','heater','steam_inlet','steam_outlet','console','loader','autoloader'];
+const ROD=0,ROD_MOD=1,ROD_REASIM=2,ROD_REASIM_MOD=3,CONTROL=4,CONTROL_MOD=5,CONTROL_AUTO=6,CONTROL_REASIM=7,CONTROL_REASIM_AUTO=8,BLANK=9,BOILER=10,REFLECTOR=11,ABSORBER=12,MODERATOR=13,OUTGASSER=14,STORAGE=15,COOLER=16,HEATER=17,STEAM_INLET=18,STEAM_OUTLET=19,CONSOLE=20,LOADER=21,AUTOLOADER=22;
+const isRodK=k=>k<=3;
+const isControlK=k=>k>=4&&k<=8;
+const isAutoK=k=>k===CONTROL_AUTO||k===CONTROL_REASIM_AUTO;
+const isReasimK=k=>k===ROD_REASIM||k===ROD_REASIM_MOD||k===CONTROL_REASIM||k===CONTROL_REASIM_AUTO;
+const isModeratedK=k=>k===ROD_MOD||k===ROD_REASIM_MOD||k===CONTROL_MOD;
+const kindFromStr=s=>{const i=KIND_IDS.indexOf(s);return i<0?BLANK:i;};
+const DIRS4=[[1,0],[-1,0],[0,1],[0,-1]];
+const DIRS8=[[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
+
+// ---------------------------------------------------------------- топливо
+// [id, label, cat, lifetime, yield, reactivity, selfRate, func, dep, xgen, xburn, heat, melt, diffusion, nIn, nOut]
+const RAW=[
+['ueu','Уран ОН (U-EU)','Уран',1e8,15,0,0,'LOG_TEN','RAISING_SLOPE',.5,50,.65,2865,.02,'SLOW','FAST'],
+['meu','Уран НН (U-NU)','Уран',1e8,20,0,0,'LOG_TEN','RAISING_SLOPE',.5,50,.65,2865,.02,'SLOW','FAST'],
+['heu233','Уран ВН U-233','Уран',1e8,27.5,0,0,'LINEAR','GENTLE_SLOPE',.5,50,1.25,2865,.02,'SLOW','FAST'],
+['heu235','Уран ВН U-235','Уран',1e8,50,0,0,'SQUARE_ROOT','GENTLE_SLOPE',.5,50,1,2865,.02,'SLOW','FAST'],
+['uzh','Уран-циркониевый','Уран',5e7,30,0,0,'LOG_TEN','GENTLE_SLOPE',.5,50,.75,1845,.1,'SLOW','FAST'],
+['thmeu','Торий НН (Th-NU)','Уран',1e8,20,0,0,'PLATEU','BOOSTED_SLOPE',.5,50,.65,3350,.02,'SLOW','FAST'],
+['lep','Плутоний ОН (Pu-LE)','Плутоний',1e8,35,0,0,'LOG_TEN','RAISING_SLOPE',.5,50,.75,2744,.02,'SLOW','FAST'],
+['mep','Плутоний НН (Pu-ME)','Плутоний',1e8,35,0,0,'SQUARE_ROOT','GENTLE_SLOPE',.5,50,1,2744,.02,'SLOW','FAST'],
+['hep239','Плутоний ВН Pu-239','Плутоний',1e8,30,0,0,'LINEAR','GENTLE_SLOPE',.5,50,1.25,2744,.02,'SLOW','FAST'],
+['hep241','Плутоний ВН Pu-241','Плутоний',1e8,40,0,0,'LINEAR','GENTLE_SLOPE',.5,50,1.75,2744,.02,'SLOW','FAST'],
+['mox','МОКС','Плутоний',1e8,40,0,0,'LOG_TEN','RAISING_SLOPE',.5,50,1,2815,.02,'SLOW','FAST'],
+['lea','Америций ОН (Am-LE)','Америций',1e8,60,10,0,'SQUARE_ROOT','RAISING_SLOPE',.5,50,1.5,2386,.02,'SLOW','FAST'],
+['mea','Америций НН (Am-ME)','Америций',1e8,35,20,0,'ARCH','GENTLE_SLOPE',.5,50,1.75,2386,.02,'SLOW','FAST'],
+['hea241','Америций ВН Am-241','Америций',1e8,65,15,0,'SQUARE_ROOT','GENTLE_SLOPE',.5,50,1.85,2386,.02,'FAST','FAST'],
+['hea242','Америций ВН Am-242','Америций',1e8,45,0,0,'LINEAR','GENTLE_SLOPE',.5,50,2,2386,.02,'SLOW','FAST'],
+['bk247','Берклий Bk-247','Прочие актиноиды',1e8,50,0,0,'LINEAR','GENTLE_SLOPE',.5,50,2,2993,.02,'SLOW','FAST'],
+['men','Нептуний НН (Np-ME)','Прочие актиноиды',1e8,30,0,0,'SQUARE_ROOT','RAISING_SLOPE',.5,50,.75,2800,.02,'ANY','FAST'],
+['hen','Нептуний ВН (Np-HE)','Прочие актиноиды',1e8,40,0,0,'SQUARE_ROOT','GENTLE_SLOPE',.5,50,1,2800,.02,'FAST','FAST'],
+['les','Самарий ОН (Sm-LE)','Прочие актиноиды',1e8,50,0,0,'SQUARE_ROOT','GENTLE_SLOPE',.5,50,1.25,2500,.02,'SLOW','SLOW'],
+['mes','Самарий НН (Sm-ME)','Прочие актиноиды',1e8,75,0,0,'ARCH','GENTLE_SLOPE',.5,50,1.5,2750,.02,'SLOW','FAST'],
+['hes','Самарий ВН (Sm-HE)','Прочие актиноиды',1e8,90,0,0,'LINEAR','LINEAR',.5,50,1.75,3000,.02,'SLOW','FAST'],
+['leaus','Австралий ОН','Австралий',1e8,30,0,0,'SIGMOID','LINEAR',.05,50,1.5,7029,.02,'SLOW','FAST'],
+['heaus','Австралий ВН','Австралий',1e8,35,0,0,'LINEAR','GENTLE_SLOPE',.05,50,1.5,5211,.02,'SLOW','FAST'],
+['po210be','Источник Po-210+Be','Источники',2.5e7,0,0,50,'PASSIVE','LINEAR',0,50,.1,1287,.05,'SLOW','SLOW'],
+['ra226be','Источник Ra-226+Be','Источники',1e8,0,0,20,'PASSIVE','LINEAR',0,50,.035,700,.5,'SLOW','SLOW'],
+['pu238be','Источник Pu-238+Be','Источники',5e7,40,0,40,'SQUARE_ROOT','GENTLE_SLOPE',.5,50,.1,1287,.05,'SLOW','SLOW'],
+['balefire','Гнев Пустоты (balefire)','Balefire',1e8,100,35,0,'LINEAR','GENTLE_SLOPE',0,50,3,3652,.02,'SLOW','FAST'],
+['balefire_gold','Золотой balefire','Balefire',1e8,50,10,0,'ARCH','LINEAR',0,50,1,2000,.02,'SLOW','FAST'],
+['flashlead','Флэш-свинец','Balefire',2.5e8,40,50,0,'ARCH','LINEAR',0,50,1,2050,.02,'SLOW','FAST'],
+['zfb_bismuth','ZFB висмут','ZFB',5e7,20,0,0,'SQUARE_ROOT','GENTLE_SLOPE',.5,50,1.75,2744,.02,'SLOW','FAST'],
+['zfb_pu241','ZFB Pu-241','ZFB',5e7,20,0,0,'SQUARE_ROOT','GENTLE_SLOPE',.5,50,1,2865,.02,'SLOW','FAST'],
+['zfb_am_mix','ZFB Am-микс','ZFB',5e7,20,0,0,'LINEAR','GENTLE_SLOPE',.5,50,1.75,2744,.02,'SLOW','FAST'],
+['drx','Драконий (DRX)','Экзотика',1e7,1000,10,0,'QUADRATIC','GENTLE_SLOPE',0,50,.1,100000,.02,'SLOW','FAST'],
+['test','Тестовое','Экзотика',1e6,100,0,0,'EXPERIMENTAL','GENTLE_SLOPE',.5,50,1,100000,.02,'SLOW','FAST'],
+['lecm','Криокриум ОН','Экзотика',3e7,20,5,0,'SLOW_LINEAR','CF_SLOPE',.5,50,1.25,1340,.4,'SLOW','FAST'],
+['mecm','Криокриум НН','Экзотика',2.7e7,30,10,0,'SLOW_LINEAR','CF_SLOPE',.5,50,1.25,1720,.3,'SLOW','FAST'],
+['hecm','Криокриум ВН','Экзотика',2.4e7,60,25,0,'SLOW_LINEAR','CF_SLOPE',.5,50,1.3,1880,.3,'SLOW','FAST'],
+];
+const FUELS=RAW.map(a=>({id:a[0],label:a[1],cat:a[2],lifetime:a[3],yld:a[4],reactivity:a[5],selfRate:a[6],func:a[7],dep:a[8],xgen:a[9],xburn:a[10],heat:a[11],melt:a[12],diffusion:a[13],nIn:a[14],nOut:a[15],source:a[7]==='PASSIVE'||a[6]>0}));
+const FUEL_IDX={};FUELS.forEach((f,i)=>FUEL_IDX[f.id]=i);
+const fuelIdx=id=>(id in FUEL_IDX)?FUEL_IDX[id]:0;
+const fuelOf=i=>FUELS[i>=0&&i<FUELS.length?i:0];
+
+function burnCurve(func,x,yld,selfRate,enrich){
+  x=x>0?x:0;
+  switch(func){
+    case 'LOG_TEN':return Math.log10(x+1)*0.5*yld;
+    case 'LINEAR':return (x/100)*yld;
+    case 'SQUARE_ROOT':return (Math.sqrt(x)/10)*yld;
+    case 'PLATEU':return (1-Math.exp(-x/25))*yld;
+    case 'ARCH':{let v=(x-(x*x)/10000)/100;return (v>0?v:0)*yld;}
+    case 'SIGMOID':return yld/(1+Math.exp(-(x-50)/10));
+    case 'QUADRATIC':return ((x*x)/10000)*yld;
+    case 'SLOW_LINEAR':return (Math.sqrt(2*x+30)/10/2.5)*yld;
+    case 'EXPERIMENTAL':return x*(Math.sin(x)+1)*yld;
+    case 'PASSIVE':return selfRate*enrich;
+  }
+  return 0;
+}
+function depletionCurve(dep,rest){
+  const x=rest<0?0:(rest>1?1:rest);
+  switch(dep){
+    case 'STATIC':return 1;
+    case 'LINEAR':return x;
+    case 'GENTLE_SLOPE':return x+(Math.sin(x*Math.PI)/3);
+    case 'RAISING_SLOPE':return x+Math.sin(x*Math.PI)/2;
+    case 'BOOSTED_SLOPE':return x+Math.sin((x-1)*(x-1)*Math.PI);
+    case 'CF_SLOPE':return x+Math.sin(x*Math.PI)*1.4;
+  }
+  return x;
+}
+function neutronCompat(out,inn){
+  if(out==='ANY'||inn==='ANY'||out===inn)return 1;
+  return 0.3;
+}
+
+// ---------------------------------------------------------------- ГПСЧ
+function Rng(seed){
+  let a=seed>>>0;
+  this.f=function(){
+    a=(a+0x6d2b79f5)>>>0;
+    let t=a;
+    t=Math.imul(t^(t>>>15),(1|t))>>>0;
+    t=((t+Math.imul(t^(t>>>7),(61|t)))^t)>>>0;
+    return ((t^(t>>>14))>>>0)/4294967296;
+  };
+  this.irand=n=>(this.f()*n)|0;
+}
+
+// ---------------------------------------------------------------- сетка
+class Layout{
+  constructor(w,h,mode){
+    this.w=w;this.h=h;this.mode=mode===1?1:0;this.autoTarget=0;
+    const n=w*h;
+    this.k=new Int8Array(n).fill(BLANK);
+    this.fuel=new Int16Array(n);
+    this.l=new Float64Array(n).fill(1);
+    this.sIn=new Float64Array(n);this.fIn=new Float64Array(n);
+    this.out=new Float64Array(n);this.xen=new Float64Array(n);this.burn=new Float64Array(n);
+    this.hc=new Float64Array(n).fill(20);this.hh=new Float64Array(n).fill(20);
+    this.wtr=new Float64Array(n).fill(16000);
+    this.st=new Float64Array(n);this.stT=new Int8Array(n);
+    this.seen=new Float64Array(n);this.gen=new Float64Array(n);
+    this.steamMade=new Float64Array(n);this.waterUsed=new Float64Array(n);
+    this.molten=new Uint8Array(n);this.failed=new Uint8Array(n);
+    this.ports=[];   // порты воды/пара — снаружи сетки (вплотную к отражателям)
+  }
+  clone(){
+    const c=new Layout(this.w,this.h,this.mode);
+    c.autoTarget=this.autoTarget;
+    c.k.set(this.k);c.fuel.set(this.fuel);c.l.set(this.l);
+    c.sIn.set(this.sIn);c.fIn.set(this.fIn);c.out.set(this.out);
+    c.xen.set(this.xen);c.burn.set(this.burn);c.hc.set(this.hc);c.hh.set(this.hh);
+    c.wtr.set(this.wtr);c.st.set(this.st);c.stT.set(this.stT);
+    c.seen.set(this.seen);c.gen.set(this.gen);
+    c.steamMade.set(this.steamMade);c.waterUsed.set(this.waterUsed);
+    c.molten.set(this.molten);c.failed.set(this.failed);
+    c.ports=this.ports.map(p=>({x:p.x,z:p.z,k:p.k}));
+    return c;
+  }
+  inB(x,z){return x>=0&&z>=0&&x<this.w&&z<this.h;}
+  resetCell(i){
+    this.k[i]=MODERATOR;this.fuel[i]=0;this.l[i]=1;
+    this.sIn[i]=0;this.fIn[i]=0;this.out[i]=0;this.xen[i]=0;this.burn[i]=0;
+    this.hc[i]=20;this.hh[i]=20;this.wtr[i]=16000;this.st[i]=0;this.stT[i]=0;
+    this.seen[i]=0;this.gen[i]=0;this.steamMade[i]=0;this.waterUsed[i]=0;
+    this.molten[i]=0;this.failed[i]=0;
+  }
+  copyFrom(o){
+    this.w=o.w;this.h=o.h;this.mode=o.mode;this.autoTarget=o.autoTarget;
+    this.k.set(o.k);this.fuel.set(o.fuel);this.l.set(o.l);
+    this.sIn.set(o.sIn);this.fIn.set(o.fIn);this.out.set(o.out);
+    this.xen.set(o.xen);this.burn.set(o.burn);this.hc.set(o.hc);this.hh.set(o.hh);
+    this.wtr.set(o.wtr);this.st.set(o.st);this.stT.set(o.stT);
+    this.seen.set(o.seen);this.gen.set(o.gen);
+    this.steamMade.set(o.steamMade);this.waterUsed.set(o.waterUsed);
+    this.molten.set(o.molten);this.failed.set(o.failed);
+    this.ports=(o.ports||[]).map(p=>({x:p.x,z:p.z,k:p.k}));
+  }
+  swapCells(a,b){
+    const L=this;
+    for(const f of ['k','fuel','l','sIn','fIn','out','xen','burn','hc','hh','wtr','st','stT','seen','gen','steamMade','waterUsed','molten','failed']){
+      const t=L[f][a];L[f][a]=L[f][b];L[f][b]=t;
+    }
+  }
+}
+function parseLayout(o){
+  let w=Math.round(Number(o.w)||9),h=Math.round(Number(o.h)||w);
+  w=Math.max(1,Math.min(24,w));h=Math.max(1,Math.min(24,h));
+  const l=new Layout(w,h,o.mode==='reasim'?1:0);
+  l.autoTarget=Math.round(Number(o.autoTarget)||0);
+  const cells=o.cells||[];
+  for(let i=0;i<w*h&&i<cells.length;i++){
+    const c=cells[i]||{};
+    l.k[i]=kindFromStr(String(c.k||'blank'));
+    l.fuel[i]=fuelIdx(String(c.f||'ueu'));
+    let lv=Number(c.l);if(!Number.isFinite(lv))lv=1;
+    l.l[i]=lv<0?0:(lv>1?1:lv);
+  }
+  if(Array.isArray(o.ports)){
+    l.ports=[];
+    for(const p of o.ports){
+      if(!p||!Number.isFinite(+p.x)||!Number.isFinite(+p.z))continue;
+      const kk=String(p.k||'');
+      if(kk!=='steam_inlet'&&kk!=='steam_outlet')continue;
+      l.ports.push({x:Math.round(+p.x),z:Math.round(+p.z),k:kk==='steam_inlet'?STEAM_INLET:STEAM_OUTLET});
+    }
+  }
+  return l;
+}
+function layoutToJson(l){
+  const cells=[];
+  for(let i=0;i<l.k.length;i++)cells.push({k:KIND_IDS[l.k[i]],f:fuelOf(l.fuel[i]).id,l:+l.l[i].toFixed(4)});
+  const o={w:l.w,h:l.h,mode:l.mode===1?'reasim':'normal',cells};
+  if(l.autoTarget>0)o.autoTarget=l.autoTarget;
+  if(l.ports&&l.ports.length)o.ports=l.ports.map(p=>({x:p.x,z:p.z,k:KIND_IDS[p.k]}));
+  return o;
+}
+
+// ---------------------------------------------------------------- симулятор
+const DEF_SET={
+  fluxRange:5,moderatorEff:1,absorberEff:1,reflectorEff:1,
+  absorberHeatConv:0.05,columnHeatFlow:0.2,
+  passiveCooling:2.5,passiveCoolingInner:0.1,
+  boilerHeatConsumption:0.1,xenon:true,depletion:true,
+  steamCapNormal:1e6,steamCapReasim:16000,outletRate:2000,coolerPower:10,heaterPower:5,autoTarget:1000
+};
+const TIER_T=[100,300,450,600],TIER_F=[1,10,100,1000];
+
+class Sim{
+  constructor(L){
+    this.L=L;this.ticks=0;this.escaped=0;this.powerEq=0;
+    this.S=Object.assign({},DEF_SET);
+    if(L.autoTarget>0)this.S.autoTarget=L.autoTarget;
+    this.autoOn=true;
+    this.streams=new Float64Array(6*8192);this.nStreams=0;
+    this.hullBuf=new Float64Array(L.k.length);
+    this.series=[];this.seriesStride=1;
+    this.trackMode=0;
+    this.T={on:false,from:0,seen:null,refl:null,conv:null,steam:null,ctrl:null,absorbed:null,rodIn:null,escape:null};
+  }
+  initTrack(n,fromTick,mode){
+    this.trackMode=mode;
+    const T=this.T;
+    T.on=true;T.from=fromTick;
+    T.seen=new Float64Array(n);
+    if(mode===2){
+      T.refl=new Float64Array(n);T.conv=new Float64Array(n);T.steam=new Float64Array(n);
+      T.ctrl=new Float64Array(n);T.absorbed=new Float64Array(n);T.rodIn=new Float64Array(n);
+      T.escape=new Float64Array(n);
+    }else{T.refl=T.conv=T.steam=T.ctrl=T.absorbed=T.rodIn=T.escape=null;}
+  }
+  tick(){
+    this.escaped=0;this.powerEq=0;
+    const L=this.L,n=L.k.length;
+    L.sIn.fill(0);L.fIn.fill(0);L.seen.fill(0);L.gen.fill(0);L.steamMade.fill(0);L.waterUsed.fill(0);
+    this.autoControls();
+    this.emitStreams();
+    this.castRays();
+    this.burnRods();
+    this.heatTick();
+    this.failures();
+    this.ticks++;
+    this.pushSeries();
+  }
+  autoControls(){
+    if(!this.autoOn)return;
+    const L=this.L,S=this.S;
+    let globalMax=20;
+    for(let i=0;i<L.k.length;i++)if(isRodK(L.k[i])&&!L.molten[i]&&L.hc[i]>globalMax)globalMax=L.hc[i];
+    for(let z=0;z<L.h;z++)for(let x=0;x<L.w;x++){
+      const i=z*L.w+x;
+      if(!isAutoK(L.k[i])||L.failed[i])continue;
+      let hottest=-1,found=false;
+      for(let dz=-2;dz<=2;dz++)for(let dx=-2;dx<=2;dx++){
+        if(dx===0&&dz===0)continue;
+        const nx=x+dx,nz=z+dz;
+        if(nx<0||nz<0||nx>=L.w||nz>=L.h)continue;
+        const j=nz*L.w+nx;
+        if(isRodK(L.k[j])&&!L.molten[j]){
+          if(L.hc[j]>hottest)hottest=L.hc[j];
+          found=true;
+        }
+      }
+      const measure=found?hottest:globalMax;
+      let err=measure-S.autoTarget;
+      if(err>1500)err=1500;if(err<-1500)err=-1500;
+      let nl=L.l[i]-err*0.005;
+      L.l[i]=nl<0?0:(nl>1?1:nl);
+    }
+  }
+  emitStreams(){
+    this.nStreams=0;
+    const L=this.L,S=this.streams;
+    for(let z=0;z<L.h;z++)for(let x=0;x<L.w;x++){
+      const i=z*L.w+x,k=L.k[i];
+      if(!isRodK(k)||L.molten[i]||L.failed[i])continue;
+      const out=L.out[i];
+      if(out<=1e-9)continue;
+      const f=FUELS[L.fuel[i]];
+      const reasim=isReasimK(k),moderated=isModeratedK(k);
+      const nd=reasim?8:4,amount=reasim?out*0.75:out;
+      let ratio;
+      if(moderated)ratio=0;
+      else if(f.nOut==='FAST')ratio=1;
+      else if(f.nOut==='SLOW')ratio=0;
+      else ratio=0.5;
+      for(let d=0;d<nd;d++){
+        if(this.nStreams>=8192)return;
+        const o=this.nStreams*6,dir=reasim?DIRS8[d]:DIRS4[d];
+        S[o]=x;S[o+1]=z;S[o+2]=dir[0];S[o+3]=dir[1];S[o+4]=amount;S[o+5]=ratio;
+        this.nStreams++;
+      }
+    }
+  }
+  castRays(){
+    const range=this.S.fluxRange>1?this.S.fluxRange:1;
+    const L=this.L,S=this.streams,T=this.T;
+    const trk=(T.on&&this.ticks>=T.from)?this.trackMode:0;
+    const seen=T.seen,refl=T.refl,conv=T.conv,ctrl=T.ctrl,absorbed=T.absorbed,rodIn=T.rodIn,esc=T.escape;
+    const modEff=this.S.moderatorEff,reflEff=this.S.reflectorEff,absEff=this.S.absorberEff,absHC=this.S.absorberHeatConv;
+    for(let s=0;s<this.nStreams;s++){
+      const o=s*6;
+      let flux=S[o+4],ratio=S[o+5];
+      if(flux<=1e-9)continue;
+      const ox=S[o],oz=S[o+1],dx=S[o+2],dz=S[o+3];
+      for(let i=1;i<=range;i++){
+        const x=ox+dx*i,z=oz+dz*i;
+        if(x<0||z<0||x>=L.w||z>=L.h){
+          this.escaped+=flux;
+          if(trk===2){const lx=x-dx,lz=z-dz;if(lx>=0&&lz>=0&&lx<L.w&&lz<L.h)esc[lz*L.w+lx]+=flux;}
+          break;
+        }
+        const ci=z*L.w+x,k=L.k[ci];
+        L.seen[ci]+=flux;
+        if(trk)seen[ci]+=flux;
+        if(L.molten[ci]||L.failed[ci])break;
+        if(isRodK(k)){
+          L.sIn[ci]+=flux*(1-ratio);L.fIn[ci]+=flux*ratio;
+          if(trk===2)rodIn[ci]+=flux;
+          break;
+        }
+        if(isControlK(k)){
+          const before=flux;
+          flux*=L.l[ci];
+          if(isModeratedK(k))ratio*=1-modEff;
+          if(trk===2)ctrl[ci]+=before-flux;
+          if(flux<1e-4)break;
+          continue;
+        }
+        if(k===MODERATOR){
+          if(trk===2)conv[ci]+=flux*ratio*modEff;
+          ratio*=1-modEff;
+          continue;
+        }
+        if(k===REFLECTOR){
+          const oi=oz*L.w+ox,back=flux*reflEff;
+          L.sIn[oi]+=back*(1-ratio);L.fIn[oi]+=back*ratio;
+          if(trk===2)refl[ci]+=back;
+          break;
+        }
+        if(k===ABSORBER){
+          L.hh[ci]+=flux*absHC;
+          if(trk===2)absorbed[ci]+=flux*(absEff<1?absEff:1);
+          if(absEff>=1)break;
+          flux*=1-absEff;
+          if(flux<1e-4)break;
+          continue;
+        }
+      }
+    }
+  }
+  burnRods(){
+    const L=this.L,S=this.S;
+    for(let i=0;i<L.k.length;i++){
+      if(!isRodK(L.k[i]))continue;
+      if(L.molten[i]||L.failed[i]){L.out[i]=0;continue;}
+      const f=FUELS[L.fuel[i]];
+      let eff;
+      if(f.nIn==='SLOW')eff=L.sIn[i]+L.fIn[i]*0.5;
+      else if(f.nIn==='FAST')eff=L.fIn[i]+L.sIn[i]*0.3;
+      else eff=L.sIn[i]+L.fIn[i];
+      const input=eff+(f.selfRate>0?f.selfRate:0)+(f.reactivity>0?f.reactivity:0);
+      const xenGen=input*f.xgen;
+      const xenBurn=(input*input)/(f.xburn>1e-9?f.xburn:1e-9);
+      let poison=S.xenon?L.xen[i]/100:0;
+      if(poison>1)poison=1;if(poison<0)poison=0;
+      const effective=input*(1-poison);
+      const enrich=S.depletion?depletionCurve(f.dep,1-L.burn[i]):1;
+      const outv=burnCurve(f.func,effective,f.yld,f.selfRate,enrich);
+      L.out[i]=outv>0?outv:0;
+      const heatGen=effective*f.heat;
+      L.hc[i]+=heatGen;L.gen[i]=heatGen;
+      if(S.xenon){
+        let nx=L.xen[i]+xenGen-xenBurn-0.02;
+        L.xen[i]=nx<0?0:(nx>100?100:nx);
+      }
+      if(S.depletion)L.burn[i]=Math.min(1,L.burn[i]+input/(f.lifetime>1e-9?f.lifetime:1e-9));
+    }
+  }
+  heatTick(){
+    const L=this.L,S=this.S,n=L.k.length;
+    const reasimMode=L.mode===1;
+    let outlets=false,inlets=false;
+    for(let i=0;i<n;i++){
+      if(L.k[i]===STEAM_OUTLET)outlets=true;
+      if(L.k[i]===STEAM_INLET)inlets=true;
+    }
+    if(L.ports&&L.ports.length)
+      for(const p of L.ports){
+        if(p.k===STEAM_OUTLET)outlets=true;
+        else if(p.k===STEAM_INLET)inlets=true;
+      }
+    for(let i=0;i<n;i++){
+      if(!isRodK(L.k[i]))continue;
+      const f=FUELS[L.fuel[i]];
+      const d=(L.hc[i]-L.hh[i])*f.diffusion;
+      L.hc[i]-=d;L.hh[i]+=d;
+    }
+    const hb=this.hullBuf;
+    hb.fill(0);
+    const flow=Math.min(0.25,S.columnHeatFlow);
+    for(let z=0;z<L.h;z++)for(let x=0;x<L.w;x++){
+      const i=z*L.w+x,hi=L.hh[i];
+      let delta=0;
+      for(let d=0;d<4;d++){
+        const nx=x+DIRS4[d][0],nz=z+DIRS4[d][1];
+        if(nx<0||nz<0||nx>=L.w||nz>=L.h)continue;
+        delta+=(L.hh[nz*L.w+nx]-hi)*flow;
+      }
+      hb[i]=delta;
+    }
+    for(let i=0;i<n;i++)L.hh[i]+=hb[i];
+    for(let z=0;z<L.h;z++)for(let x=0;x<L.w;x++){
+      const i=z*L.w+x;
+      if(L.failed[i])continue;
+      let neighbors=0;
+      for(let d=0;d<4;d++){
+        const nx=x+DIRS4[d][0],nz=z+DIRS4[d][1];
+        if(nx>=0&&nz>=0&&nx<L.w&&nz<L.h)neighbors++;
+      }
+      const exposed=(4-neighbors)/4;
+      const cooling=S.passiveCoolingInner+(S.passiveCooling-S.passiveCoolingInner)*exposed;
+      L.hh[i]=L.hh[i]-cooling>20?L.hh[i]-cooling:20;
+      if(L.k[i]===COOLER)L.hh[i]=L.hh[i]-S.coolerPower>20?L.hh[i]-S.coolerPower:20;
+      if(L.k[i]===HEATER)L.hh[i]+=S.heaterPower;
+      if(L.k[i]===BOILER)this.boilTick(i,reasimMode,outlets,inlets);
+    }
+  }
+  boilTick(ci,reasimMode,outlets,inlets){
+    const L=this.L,S=this.S;
+    const cap=reasimMode?S.steamCapReasim:S.steamCapNormal;
+    if(!reasimMode||inlets)L.wtr[ci]=Math.min(cap,L.wtr[ci]+2000);
+    let tierIdx=-1;
+    for(let i=3;i>=0;i--){if(L.hh[ci]>TIER_T[i]){tierIdx=i;break;}}
+    if(tierIdx>=0&&L.wtr[ci]>0){
+      const availHeat=L.hh[ci]-TIER_T[tierIdx];
+      let roomWater=((cap-L.st[ci])*TIER_F[tierIdx])/100;
+      if(roomWater<0)roomWater=0;
+      let waterUsed=availHeat/S.boilerHeatConsumption;
+      if(roomWater<waterUsed)waterUsed=roomWater;
+      if(L.wtr[ci]<waterUsed)waterUsed=L.wtr[ci];
+      if(waterUsed>0){
+        const steamMade=(waterUsed*100)/TIER_F[tierIdx];
+        L.hh[ci]-=waterUsed*S.boilerHeatConsumption;
+        L.wtr[ci]-=waterUsed;
+        L.st[ci]+=steamMade;
+        L.stT[ci]=tierIdx;
+        L.steamMade[ci]=steamMade;
+        L.waterUsed[ci]=waterUsed;
+        this.powerEq+=steamMade*TIER_F[tierIdx];
+        if(this.trackMode===2&&this.ticks>=this.T.from)this.T.steam[ci]+=steamMade;
+      }
+    }
+    if(!reasimMode){L.st[ci]=0;}
+    else if(outlets){const ex=Math.min(L.st[ci],S.outletRate);L.st[ci]-=ex;}
+  }
+  failures(){
+    const L=this.L;
+    for(let i=0;i<L.k.length;i++){
+      if(isRodK(L.k[i])&&!L.molten[i]&&L.hc[i]>=FUELS[L.fuel[i]].melt){L.molten[i]=1;L.out[i]=0;}
+      if(!L.failed[i]&&L.hh[i]>=1500){L.failed[i]=1;if(isRodK(L.k[i]))L.out[i]=0;}
+    }
+  }
+  pushSeries(){
+    const L=this.L;
+    let totIn=0,totOut=0,maxCore=20,maxHull=20,coreSum=0,rodCount=0,steam=0;
+    for(let i=0;i<L.k.length;i++){
+      if(isRodK(L.k[i])){
+        rodCount++;
+        totIn+=L.sIn[i]+L.fIn[i];
+        totOut+=L.out[i];
+        if(L.hc[i]>maxCore)maxCore=L.hc[i];
+        coreSum+=L.hc[i];
+      }
+      if(L.hh[i]>maxHull)maxHull=L.hh[i];
+      steam+=L.steamMade[i];
+    }
+    const chainOut=totOut>0?totOut:0;
+    const prevOut=this.series.length?this.series[this.series.length-1].outFlux:1;
+    let keff;
+    if(prevOut>1e-6)keff=chainOut/prevOut<50?chainOut/prevOut:50;
+    else keff=chainOut>1e-6?50:0;
+    let rad=this.escaped*0.05;
+    for(let i=0;i<L.k.length;i++){
+      if(L.molten[i])rad+=25;
+      else if(L.failed[i])rad+=10;
+    }
+    const p={t:this.ticks,inFlux:totIn,outFlux:totOut,maxCore,maxHull,avgCore:rodCount?coreSum/rodCount:20,steam,rad,keff,power:this.powerEq};
+    if(this.series.length<512||(this.ticks%this.seriesStride)===0)this.series.push(p);
+    if(this.series.length>=1024){
+      const ns=[];
+      for(let i=0;i<this.series.length;i+=2)ns.push(this.series[i]);
+      this.series=ns;
+      this.seriesStride*=2;
+    }
+  }
+}
+
+function igniteLayout(l){
+  let hasSource=false;
+  for(let i=0;i<l.k.length;i++)
+    if(isRodK(l.k[i])&&!l.molten[i]&&isSourceFuel(l.fuel[i]))hasSource=true;
+  if(hasSource)return;
+  for(let i=0;i<l.k.length;i++)
+    if(isRodK(l.k[i])&&!l.molten[i])l.out[i]=l.out[i]>1?l.out[i]:1;
+}
+
+// ---------------------------------------------------------------- отчёты
+function reportLite(sim){
+  const L=sim.L,r={rods:0,molten:0,failed:0,boilers:0,controls:0,
+    inFlux:0,outFlux:0,keff:0,maxCore:20,maxHull:20,avgCore:20,minMargin:0,
+    steamPerTick:0,radPerTick:0,avgXenon:0,avgBurnup:0,powerPerTick:0,tailPower:0,
+    burnRate:0,irradiation:0,tailSteam:0,tailFlux:0,tailRad:0,tailKeff:0,tailStd:0,
+    peakCore:20,coreSlope:0};
+  let xenSum=0,burnSum=0,coreSum=0,minMargin=1e18,steamTier=-1;
+  for(let i=0;i<L.k.length;i++){
+    if(isRodK(L.k[i])){
+      r.rods++;
+      if(L.molten[i])r.molten++;
+      const f=FUELS[L.fuel[i]];
+      if(L.hc[i]>r.maxCore)r.maxCore=L.hc[i];
+      coreSum+=L.hc[i];xenSum+=L.xen[i];burnSum+=L.burn[i];
+      r.burnRate+=(L.sIn[i]+L.fIn[i]+(f.selfRate>0?f.selfRate:0)+(f.reactivity>0?f.reactivity:0))/(f.lifetime>1?f.lifetime:1);
+      if(!L.molten[i]&&f.melt-L.hc[i]<minMargin)minMargin=f.melt-L.hc[i];
+    }
+    if(L.failed[i])r.failed++;
+    if(L.k[i]===BOILER){r.boilers++;if(L.stT[i]>steamTier)steamTier=L.stT[i];}
+    if(isControlK(L.k[i]))r.controls++;
+    if(L.k[i]===OUTGASSER||L.k[i]===STORAGE)r.irradiation+=L.seen[i];
+    if(L.hh[i]>r.maxHull)r.maxHull=L.hh[i];
+  }
+  if(minMargin>1e17)minMargin=0;
+  r.minMargin=minMargin;
+  r.avgCore=r.rods?coreSum/r.rods:20;
+  r.avgXenon=r.rods?xenSum/r.rods:0;
+  r.avgBurnup=r.rods?burnSum/r.rods:0;
+  if(sim.series.length){
+    const last=sim.series[sim.series.length-1];
+    r.inFlux=last.inFlux;r.outFlux=last.outFlux;r.keff=last.keff;
+    r.steamPerTick=last.steam;r.radPerTick=last.rad;r.powerPerTick=last.power;
+    const n=Math.min(20,sim.series.length),st=sim.series.length-n;
+    let sSteam=0,sFlux=0,sRad=0,sKeff=0,sPower=0;
+    for(let i=0;i<n;i++){
+      sSteam+=sim.series[st+i].steam;sFlux+=sim.series[st+i].outFlux;
+      sRad+=sim.series[st+i].rad;sKeff+=sim.series[st+i].keff;sPower+=sim.series[st+i].power;
+    }
+    r.tailSteam=sSteam/n;r.tailFlux=sFlux/n;r.tailRad=sRad/n;r.tailKeff=sKeff/n;r.tailPower=sPower/n;
+    const mean=r.tailFlux;let vr=0;
+    for(let i=0;i<n;i++)vr+=(sim.series[st+i].outFlux-mean)*(sim.series[st+i].outFlux-mean);
+    r.tailStd=Math.sqrt(vr/n);
+    for(const p of sim.series)if(p.maxCore>r.peakCore)r.peakCore=p.maxCore;
+    if(sim.series.length>=21){
+      const lp=sim.series[sim.series.length-1],bp=sim.series[sim.series.length-21];
+      const dt=lp.t-bp.t;
+      if(dt>0)r.coreSlope=(lp.maxCore-bp.maxCore)/dt;
+    }
+  }
+  r.hc=Float64Array.from(L.hc);
+  r.moltenPos=Uint8Array.from(L.molten);
+  return r;
+}
+
+function reportToJson(sim){
+  const L=sim.L,r=reportLite(sim);
+  const o={ticks:sim.ticks,mode:L.mode===1?'reasim':'normal',
+    rods:r.rods,molten:r.molten,failed:r.failed,boilers:r.boilers,controls:r.controls,
+    inFlux:r.inFlux,outFlux:r.outFlux,keff:r.keff,maxCore:r.maxCore,maxHull:r.maxHull,
+    avgCore:r.avgCore,minMargin:r.minMargin,steamPerTick:r.steamPerTick,steamPerSec:r.steamPerTick*20,
+    powerPerTick:r.powerPerTick,powerPerSec:r.powerPerTick*20,
+    radPerTick:r.radPerTick,avgXenon:r.avgXenon,avgBurnup:r.avgBurnup,
+    burnRate:r.burnRate,irradiation:r.irradiation};
+  const tierNames=['Пар','Горячий пар','Сверхгорячий пар','Ультра-пар'];
+  let topTier=-1;
+  for(let i=0;i<L.k.length;i++)if(L.k[i]===BOILER&&L.stT[i]>topTier)topTier=L.stT[i];
+  o.steamType=topTier>=0?tierNames[topTier]:'—';
+  let outlets=0,inlets=0;
+  for(let i=0;i<L.k.length;i++){
+    if(L.k[i]===STEAM_OUTLET)outlets++;
+    if(L.k[i]===STEAM_INLET)inlets++;
+  }
+  if(L.ports&&L.ports.length)
+    for(const p of L.ports){
+      if(p.k===STEAM_OUTLET)outlets++;
+      else if(p.k===STEAM_INLET)inlets++;
+    }
+  o.outlets=outlets;o.inlets=inlets;
+  o.series=sim.series;
+  const warns=[];
+  if(r.molten>0)warns.push({level:'error',text:'Расплавлено ТВЭЛов: '+r.molten+'. Схема не выдерживает поток.'});
+  if(r.failed>0)warns.push({level:'error',text:'Разрушено колонн: '+r.failed+' (корпус выше 1500°C).'});
+  if(r.keff>1.05)warns.push({level:'warn',text:'Разгон потока: keff = '+r.keff.toFixed(2)+' — прикройте стержни.'});
+  if(r.rods>0&&r.outFlux<5&&r.keff>0&&r.keff<0.9)warns.push({level:'warn',text:'Подкритичность: цепная реакция затухает (ксенон или слабое топливо).'});
+  if(r.radPerTick>5)warns.push({level:'warn',text:'Утечка нейтронов за контур: '+(r.radPerTick*20).toFixed(1)+' рад/с — добавьте отражатели.'});
+  if(r.minMargin<200&&r.rods>0)warns.push({level:'warn',text:'Малый запас до плавления: '+r.minMargin.toFixed(0)+'°C.'});
+  if(r.rods>0&&r.avgCore<100)warns.push({level:'info',text:'Реактор заглушен или не прогрет: средняя температура сердечников ниже 100°C.'});
+  if(L.mode===1){
+    for(let i=0;i<L.k.length;i++){
+      if(L.k[i]===BOILER&&L.st[i]>=sim.S.steamCapReasim-1){
+        warns.push({level:'error',text:'Котёл заполнен паром под завязку — нужен выход пара (порт отбора).'});
+        break;
+      }
+    }
+  }
+  o.warnings=warns;
+  const cs=[];
+  for(let i=0;i<L.k.length;i++){
+    cs.push({x:i%L.w,z:(i/L.w)|0,k:KIND_IDS[L.k[i]],f:fuelOf(L.fuel[i]).id,l:L.l[i],
+      sIn:L.sIn[i],fIn:L.fIn[i],out:L.out[i],hc:L.hc[i],hh:L.hh[i],xen:L.xen[i],burn:L.burn[i],
+      st:L.st[i],seen:L.seen[i],molten:!!L.molten[i],failed:!!L.failed[i]});
+  }
+  o.cellStats=cs;
+  return o;
+}
+
+// ---------------------------------------------------------------- генератор
+function isSourceFuel(fi){const f=fuelOf(fi);return f.selfRate>0||f.func==='PASSIVE';}
+function bestSourceFuel(){
+  let best=fuelIdx('po210be'),bestRate=0;
+  for(let i=0;i<FUELS.length;i++)if(FUELS[i].selfRate>bestRate){bestRate=FUELS[i].selfRate;best=i;}
+  return best;
+}
+function countBlocks(l){
+  const c={rods:0,controls:0,boilers:0,reflectors:0,moderators:0,absorbers:0,outgassers:0,blanks:0};
+  for(let i=0;i<l.k.length;i++){
+    const k=l.k[i];
+    if(isRodK(k))c.rods++;
+    else if(isControlK(k))c.controls++;
+    else if(k===BOILER)c.boilers++;
+    else if(k===REFLECTOR)c.reflectors++;
+    else if(k===MODERATOR)c.moderators++;
+    else if(k===ABSORBER)c.absorbers++;
+    else if(k===OUTGASSER)c.outgassers++;
+    else c.blanks++;
+  }
+  return c;
+}
+function minMeltOf(l){
+  let m=1e18,any=false;
+  for(let i=0;i<l.k.length;i++){
+    if(!isRodK(l.k[i]))continue;
+    if(isSourceFuel(l.fuel[i]))continue;
+    m=Math.min(m,FUELS[l.fuel[i]].melt);any=true;
+  }
+  if(!any)for(let i=0;i<l.k.length;i++)if(isRodK(l.k[i])){m=Math.min(m,FUELS[l.fuel[i]].melt);any=true;}
+  return any&&m<1e17?m:3000;
+}
+function chainFierce(fi){
+  const f=fuelOf(fi);
+  if(f.heat<=0.01)return 0.05;
+  // безопасный вход = предел теплоотвода сердечника (диффузия x запас),
+  // а не эвристика «минус 700»
+  const safeIn=Math.max(5,(0.8*f.melt-300)*f.diffusion/f.heat);
+  let x=1;
+  for(let i=0;i<600;i++){
+    const nx=burnCurve(f.func,4*x+1,f.yld,f.selfRate,1);
+    if(!Number.isFinite(nx)||nx<=0)return 100;
+    if(nx>200000)return 100;
+    if(Math.abs(nx-x)<1e-7){x=nx;break;}
+    x=nx;
+  }
+  return (4*x)/Math.max(1,safeIn);
+}
+function fuelFloorOf(cfg){
+  let req=0;
+  for(const r of cfg.requirements)req+=r.count;
+  return Math.max(req+2,5);
+}
+function minCtrlCount(cfg,rodCount){
+  if(cfg.controlCount>=0)return cfg.controlCount;
+  if(rodCount<=0)return 0;
+  if(cfg.goal==='stability')return Math.max(3,Math.floor(rodCount/3));
+  return Math.max(3,Math.floor(rodCount/5));
+}
+function requirementsMet(l,reqs){
+  for(const r of reqs){
+    let n=0;
+    for(let i=0;i<l.k.length;i++)if(isRodK(l.k[i])&&l.fuel[i]===r.fuel)n++;
+    if(n<r.count)return false;
+  }
+  return true;
+}
+function budgetsOk(l,cfg){
+  const c=countBlocks(l);
+  if(cfg.maxReflectors>=0&&c.reflectors>cfg.maxReflectors)return false;
+  if(cfg.maxAbsorbers>=0&&c.absorbers>cfg.maxAbsorbers)return false;
+  if(cfg.maxModerators>=0&&c.moderators>cfg.maxModerators)return false;
+  if(cfg.controlCount>=0&&c.controls>cfg.controlCount)return false;
+  if(cfg.boilerDensity===2&&c.boilers>0)return false;
+  return true;
+}
+function gapControlKind(cfg){
+  if(cfg.mode===1)return cfg.autoControl?CONTROL_REASIM_AUTO:CONTROL_REASIM;
+  if(cfg.autoControl)return CONTROL_AUTO;
+  const f=fuelOf(cfg.fuel);
+  if(f.nIn==='SLOW'&&f.nOut==='FAST')return CONTROL_MOD;
+  return CONTROL;
+}
+
+// --------------------------------------------------------------- оценка
+function idleCount(l,T,cfg){
+  if(!T.on)return 0;
+  const n=l.k.length;
+  let maxSteam=0,maxConv=0,maxRefl=0,maxSeen=0,maxAbs=0,maxRodIn=0;
+  for(let i=0;i<n;i++){
+    if(T.steam[i]>maxSteam)maxSteam=T.steam[i];
+    if(T.conv[i]>maxConv)maxConv=T.conv[i];
+    if(T.refl[i]>maxRefl)maxRefl=T.refl[i];
+    if(T.seen[i]>maxSeen)maxSeen=T.seen[i];
+    if(T.absorbed[i]>maxAbs)maxAbs=T.absorbed[i];
+    if(T.rodIn[i]>maxRodIn)maxRodIn=T.rodIn[i];
+  }
+  let cnt=0;
+  for(let i=0;i<n;i++){
+    const k=l.k[i];
+    if(k===BOILER){if(T.steam[i]<Math.max(1,maxSteam*0.02))cnt++;}
+    else if(k===MODERATOR){if(T.conv[i]<Math.max(0.5,maxConv*0.02))cnt++;}
+    else if(k===REFLECTOR){if(T.refl[i]<Math.max(0.5,maxRefl*0.02))cnt++;}
+    else if(k===OUTGASSER||k===STORAGE){if(maxSeen>1&&T.seen[i]<maxSeen*0.02)cnt++;}
+    else if(k===ABSORBER){if(T.absorbed[i]<0.5)cnt++;}
+    else if(isRodK(k)){
+      const f=FUELS[l.fuel[i]];
+      if(f.selfRate<=0&&T.rodIn[i]<Math.max(0.5,maxRodIn*0.02)){
+        let required=false;
+        for(const rq of cfg.requirements)if(rq.fuel===l.fuel[i])required=true;
+        if(!required)cnt++;
+      }
+    }
+  }
+  return cnt;
+}
+
+// доля ТВЭЛ, у которых в радиусе Чебышёва 2 есть стержень СУЗ (глушимость)
+function controlCoverage(l){
+  const n=l.w,N=l.k.length;
+  const ctrls=[];let rods=0,covered=0;
+  for(let i=0;i<N;i++){
+    if(isControlK(l.k[i]))ctrls.push(i);
+    else if(isRodK(l.k[i]))rods++;
+  }
+  if(rods===0)return 1;
+  if(!ctrls.length)return 0;
+  for(let i=0;i<N;i++){
+    if(!isRodK(l.k[i]))continue;
+    const x=i%n,z=(i/n)|0;
+    for(const j of ctrls){
+      const cx=j%n,cz=(j/n)|0;
+      if(Math.max(Math.abs(x-cx),Math.abs(z-cz))<=2){covered++;break;}
+    }
+  }
+  return covered/rods;
+}
+// целостность обода (злым цепям засчитывается и борный сегмент)
+function borderIntegrity(l,evil){
+  const n=l.w;let tot=0,good=0;
+  for(let z=0;z<n;z++)for(let x=0;x<n;x++){
+    if(!(x===0||z===0||x===n-1||z===n-1))continue;
+    tot++;
+    const k=l.k[z*n+x];
+    if(k===REFLECTOR||(evil&&k===ABSORBER))good++;
+  }
+  return tot>0?good/tot:1;
+}
+
+// trackMode: 0 — без трекинга, 1 — только seen (отжиг), 2 — полный (чистка/финал)
+function evaluate(l,cfg,ticks,trackMode){
+  const cl=l.clone();
+  igniteLayout(cl);
+  const sim=new Sim(cl);
+  if(trackMode>0)sim.initTrack(cl.k.length,Math.floor(ticks/2),trackMode);
+  for(let i=0;i<ticks;i++)sim.tick();
+  const r=reportLite(sim);
+  const power=r.tailPower,flux=r.tailFlux,rad=r.tailRad,keff=r.tailKeff;
+  const wantBoilers=cfg.boilerDensity!==2;
+  let alive;
+  if(cfg.goal==='power'&&wantBoilers)alive=r.tailPower>50;
+  else if(cfg.goal==='burnup')alive=flux>=5;
+  else alive=flux>=5;
+  let rodN=0,ctrlN=0,boilers=0,inlets=0,outlets=0;
+  for(let i=0;i<l.k.length;i++){
+    const k=l.k[i];
+    if(isRodK(k))rodN++;
+    else if(isControlK(k))ctrlN++;
+    else if(k===BOILER)boilers++;
+    else if(k===STEAM_INLET)inlets++;
+    else if(k===STEAM_OUTLET)outlets++;
+  }
+  if(l.ports&&l.ports.length)
+    for(const p of l.ports){
+      if(p.k===STEAM_INLET)inlets++;
+      else if(p.k===STEAM_OUTLET)outlets++;
+    }
+  let score;
+  if(rodN===0)score=-1e9;
+  else if(!alive&&(cfg.goal==='power'||cfg.goal==='burnup'))score=-1e9+flux;
+  else{
+    const melt=r.molten*30000+r.failed*10000;
+    const meltT=minMeltOf(l);
+    const safetyCeil=meltT*Math.min(0.92,Math.max(0.5,cfg.targetHeat*1.15));
+    const overheatPen=r.peakCore>safetyCeil?Math.min(600000,(r.peakCore-safetyCeil)*400):0;
+    const keffPen=Math.max(0,keff-1.1)*3000;
+    let base;
+    if(cfg.goal==='power'){base=power*0.1+flux*0.02;if(keff>0&&keff<0.85)base-=6000;}
+    else if(cfg.goal==='irradiation')base=r.irradiation*3+power*0.005;
+    else if(cfg.goal==='burnup')base=r.burnRate*4e6+power*0.005;
+    else if(cfg.goal==='low_rad')base=power*0.05-rad*100+(rad<0.5?500:0);
+    else base=Math.min(r.minMargin,800)*3+power*0.02-r.tailStd*2;
+    score=base-melt-overheatPen-keffPen;
+    const minC=minCtrlCount(cfg,rodN);
+    if(minC>0&&ctrlN<minC)score-=30000+(minC-ctrlN)*4000;
+    if(l.mode===1&&boilers>0&&(inlets===0||outlets===0))score-=100000;
+    for(const rq of cfg.requirements){
+      let cnt=0;
+      for(let i=0;i<l.k.length;i++)if(isRodK(l.k[i])&&l.fuel[i]===rq.fuel)cnt++;
+      if(cnt<rq.count)score-=100000;
+    }
+    // ---- СТРУКТУРА: обод сплошной, каждый ТВЭЛ под прикрытием СУЗ
+    {
+      let fierceX=chainFierce(cfg.fuel);
+      for(const rq of cfg.requirements)fierceX=Math.max(fierceX,chainFierce(rq.fuel));
+      const evilX=fierceX>2.5;
+      if(cfg.reflectorBorder&&l.w>=5)
+        score-=(1-borderIntegrity(l,evilX))*900;
+      score-=(1-controlCoverage(l))*1500;
+    }
+    if(trackMode===2)score-=Math.min(400,idleCount(l,sim.T,cfg)*15);
+    score-=Math.min(2500,Math.max(0,r.coreSlope-0.5)*30);
+  }
+  if(!Number.isFinite(score))score=-1e9;
+  return {score,r,T:sim.T};
+}
+
+// ---------------------------------------------------------- калибровка
+function probe(l,ticks,autoTarget,autoOn){
+  const cl=l.clone();
+  cl.autoTarget=Math.round(autoTarget);
+  igniteLayout(cl);
+  const sim=new Sim(cl);
+  sim.autoOn=autoOn;
+  for(let i=0;i<ticks;i++)sim.tick();
+  const o={peak:20,power:0,flux:0};
+  for(const p of sim.series)if(p.maxCore>o.peak)o.peak=p.maxCore;
+  const n=Math.min(20,sim.series.length),st=sim.series.length-n;
+  for(let i=0;i<n;i++){o.power+=sim.series[st+i].power;o.flux+=sim.series[st+i].outFlux;}
+  o.power/=Math.max(1,n);o.flux/=Math.max(1,n);
+  return o;
+}
+function calibrate(l,cfg,ticks,probes){
+  const manual=[];
+  let anyAuto=false;
+  for(let i=0;i<l.k.length;i++){
+    if(!isControlK(l.k[i]))continue;
+    if(isAutoK(l.k[i]))anyAuto=true;
+    else manual.push(i);
+  }
+  if(anyAuto)for(let i=0;i<l.k.length;i++)if(isAutoK(l.k[i]))manual.push(i);
+  const out={level:-1,overcritical:false,dead:false,autoTarget:0,steps:[],note:''};
+  if(manual.length===0){out.note='Стержней СУЗ нет — устойчивость держит сама схема.';return out;}
+  const melt=minMeltOf(l);
+  const cap=melt*Math.min(0.92,Math.max(0.5,cfg.targetHeat*1.15));
+  const at=l.autoTarget>0?l.autoTarget:1000;
+  const t=Math.max(80,Math.min(400,Math.max(ticks,cfg.finalTicks*0.75)));
+  const setAll=lv=>{for(const i of manual)l.l[i]=lv;};
+  const record=(lv,p)=>{out.steps.push({level:lv,peak:p.peak,power:p.power,alive:p.flux>=5});};
+  setAll(0.02);
+  {
+    const p=probe(l,t,at,!anyAuto);record(0.02,p);
+    if(p.peak>=melt*0.96){
+      out.level=0.02;out.overcritical=true;
+      out.note='Даже полностью погружённые стержни не спасают: есть негасимые связи (отражатели бьют прямо в ТВЭЛ).';
+      return out;
+    }
+  }
+  setAll(1);
+  {
+    const p=probe(l,t,at,!anyAuto);record(1,p);
+    if(p.flux<5){
+      out.dead=true;out.level=0.5;setAll(0.5);
+      out.note='Цепь не стартует даже при полностью извлечённых стержнях.';
+      return out;
+    }
+    if(p.peak<cap){
+      out.level=1;
+      if(anyAuto){
+        const fin=probe(l,t,at,false);
+        const nt=Math.max(200,fin.peak*0.96);
+        l.autoTarget=Math.round(nt);out.autoTarget=nt;
+      }
+      out.note='Схема безопасна даже при полностью извлечённых стержнях.';
+      return out;
+    }
+  }
+  let best=-1,bestPower=-1,hi=1;
+  const NSTEP=9;
+  for(let i=0;i<=NSTEP;i++){
+    const lv=0.06+0.94*i/NSTEP;
+    setAll(lv);
+    const p=probe(l,t,at,!anyAuto);record(lv,p);
+    if(p.peak>=cap){hi=lv;break;}
+    if(p.flux>=5&&p.power>bestPower){best=lv;bestPower=p.power;}
+  }
+  if(best<0){
+    setAll(0.06);out.level=0.06;
+    out.note='Перегрев на любом уровне — стержни прижаты почти до упора.';
+    return out;
+  }
+  let lo=best;
+  for(let i=0;i<4&&probes>4&&hi-lo>0.01;i++){
+    const mid=(lo+hi)/2;
+    setAll(mid);
+    const p=probe(l,t,at,!anyAuto);record(mid,p);
+    if(p.peak<cap&&p.flux>=5&&p.power>=bestPower*0.7){lo=mid;bestPower=Math.max(bestPower,p.power);}
+    else hi=mid;
+  }
+  setAll(lo);
+  {
+    const p=probe(l,t,at,!anyAuto);
+    if(p.power<bestPower*0.5){lo=best;setAll(lo);}
+  }
+  setAll(lo);
+  out.level=lo;
+  if(anyAuto){
+    const fin=probe(l,t,at,false);
+    let nt=Math.max(200,fin.peak*0.96);
+    if(fin.peak<25||fin.power<1)nt=Math.max(200,cfg.targetHeat*melt);
+    l.autoTarget=Math.round(nt);out.autoTarget=nt;
+    out.note='Автостержни: стартовый уровень и авто-цель откалиброваны по здоровой ветке.';
+  }else{
+    out.note='Ручные стержни СУЗ откалиброваны: максимум мощности без перегрева.';
+  }
+  return out;
+}
+
+// -------------------------------------------------------------- чистка
+function fmtNum(v){
+  if(Math.abs(v)>=1000)return v.toFixed(0);
+  if(Math.abs(v)>=10)return v.toFixed(1);
+  return v.toFixed(2);
+}
+function roleStr(l,T,i){
+  const k=l.k[i];
+  if(k===REFLECTOR)return 'возврат '+fmtNum(T.refl[i]);
+  if(k===BOILER)return 'пар '+fmtNum(T.steam[i])+' мВ/тик';
+  if(k===MODERATOR)return 'замедлено '+fmtNum(T.conv[i]);
+  if(k===OUTGASSER||k===STORAGE)return 'поток '+fmtNum(T.seen[i]);
+  if(k===ABSORBER)return 'поглощено '+fmtNum(T.absorbed[i]);
+  if(isRodK(k))return 'вход '+fmtNum(T.rodIn[i]);
+  return '';
+}
+function reasonStrKind(k,T,i){
+  if(k===REFLECTOR)return 'лучи сюда не доходят — отражатель ничего не возвращает';
+  if(k===BOILER)return 'котёл холодный: рядом нет греющих лучей, пар не вырабатывается';
+  if(k===MODERATOR)return 'сквозь замедлитель не проходит ни один луч';
+  if(k===OUTGASSER)return 'облучение нулевое — колонна вне лучей';
+  if(k===STORAGE)return 'поток не проходит — колонна вне лучей';
+  if(k===ABSORBER)return 'поглотитель не встречает поток';
+  if(isRodK(k))return 'канал мёртв: входящий поток '+fmtNum(T.rodIn[i])+' — цепная реакция его не задевает';
+  return 'компонент не участвует в работе';
+}
+function reasonStr(l,T,i){
+  return reasonStrKind(l.k[i],T,i);
+}
+function prunePass(best,cfg,ticks,bestScoreIn){
+  const evalTicks=Math.max(ticks,200);
+  const ev=evaluate(best,cfg,evalTicks,2);
+  let bestScore=ev.score;
+  const entries=[];
+  const T=ev.T;
+  if(!T.on)return {removed:0,entries,score:bestScore};
+  const n=best.k.length,N=best.w;
+  let rodN=0,ctrlN=0;
+  for(let i=0;i<n;i++){
+    if(isRodK(best.k[i]))rodN++;
+    else if(isControlK(best.k[i]))ctrlN++;
+  }
+  const floorRods=fuelFloorOf(cfg),floorCtrl=minCtrlCount(cfg,rodN);
+  let maxSteam=0,maxConv=0,maxRefl=0,maxSeen=0,maxAbs=0,maxRodIn=0,maxCtrl=0;
+  for(let i=0;i<n;i++){
+    maxSteam=Math.max(maxSteam,T.steam[i]);maxConv=Math.max(maxConv,T.conv[i]);
+    maxRefl=Math.max(maxRefl,T.refl[i]);maxSeen=Math.max(maxSeen,T.seen[i]);
+    maxAbs=Math.max(maxAbs,T.absorbed[i]);maxRodIn=Math.max(maxRodIn,T.rodIn[i]);
+    maxCtrl=Math.max(maxCtrl,T.ctrl[i]);
+  }
+  const cands=[];
+  for(let i=0;i<n;i++){
+    const bx=i%N,bz=(i/N)|0;
+    if(bx===0||bz===0||bx===N-1||bz===N-1)continue;
+    const k=best.k[i];
+    let role=1e18,removable=false;
+    if(k===BOILER){role=T.steam[i];removable=role<Math.max(1,maxSteam*0.02);}
+    else if(k===MODERATOR){role=T.conv[i];removable=role<Math.max(0.5,maxConv*0.02);}
+    else if(k===REFLECTOR){role=T.refl[i];removable=role<Math.max(0.5,maxRefl*0.02);}
+    else if(k===OUTGASSER||k===STORAGE){role=T.seen[i];removable=maxSeen>1&&role<maxSeen*0.02;}
+    else if(k===ABSORBER){role=T.absorbed[i];removable=role<0.5;}
+    else if(isRodK(k)){
+      const f=FUELS[best.fuel[i]];
+      let required=false;
+      for(const rq of cfg.requirements)if(rq.fuel===best.fuel[i])required=true;
+      role=T.rodIn[i];
+      removable=f.selfRate<=0&&!required&&rodN>floorRods&&role<Math.max(0.5,maxRodIn*0.02);
+    }else if(isControlK(k)){
+      role=T.ctrl[i];
+      // Стержни СУЗ не чистим никогда: даже «пустой» стержень — орган
+      // глушения с консоли. Пусть лучше их будет с запасом.
+      removable=false;
+    }
+    if(removable)cands.push({i,role});
+  }
+  if(cands.length===0)return {removed:0,entries,score:bestScore};
+  cands.sort((a,b)=>a.role-b.role);
+  let removed=0,batch=Math.max(1,(cands.length/6)|0),idx=0,rejectStreak=0;
+  while(idx<cands.length&&batch>=1){
+    const take=Math.min(batch,cands.length-idx);
+    const saved=[];
+    for(let j=idx;j<idx+take;j++){
+      const i=cands[j].i;
+      saved.push({i,k:best.k[i],fuel:best.fuel[i],l:best.l[i],hc:best.hc[i],hh:best.hh[i]});
+      best.resetCell(i);
+      best.k[i]=MODERATOR;
+    }
+    const ev2=evaluate(best,cfg,evalTicks,2);
+    if(ev2.score>=bestScore-1){
+      bestScore=ev2.score;
+      for(let j=idx;j<idx+take;j++){
+        const i=cands[j].i,s=saved[j-idx];
+        entries.push({x:i%N,z:(i/N)|0,kind:KIND_IDS[s.k],role:roleStr2(s,T,i),reason:reasonStrKind(s.k,T,i)+' Заменено графитовой кладкой (сплошность защиты).'});
+      }
+      removed+=take;idx+=take;rejectStreak=0;
+    }else{
+      for(const s of saved){
+        best.resetCell(s.i);
+        best.k[s.i]=s.k;best.fuel[s.i]=s.fuel;best.l[s.i]=s.l;best.hc[s.i]=s.hc;best.hh[s.i]=s.hh;
+      }
+      if(batch>1)batch=(batch/2)|0;
+      else{idx++;rejectStreak++;if(rejectStreak>=3)break;}
+    }
+  }
+  return {removed,entries,score:bestScore};
+}
+function roleStr2(saved,T,i){
+  const k=saved.k;
+  if(k===REFLECTOR)return 'возврат '+fmtNum(T.refl[i]);
+  if(k===BOILER)return 'пар '+fmtNum(T.steam[i])+' мВ/тик';
+  if(k===MODERATOR)return 'замедлено '+fmtNum(T.conv[i]);
+  if(k===OUTGASSER||k===STORAGE)return 'поток '+fmtNum(T.seen[i]);
+  if(k===ABSORBER)return 'поглощено '+fmtNum(T.absorbed[i]);
+  if(isRodK(k))return 'вход '+fmtNum(T.rodIn[i]);
+  return '';
+}
+
+// ---------------------------------------------------------- участие
+function computeParticipation(l,T){
+  const n=l.k.length;
+  const out=[];
+  let maxSteam=0,maxConv=0,maxRefl=0,maxSeen=0,maxAbs=0,maxCtrl=0,maxRodIn=0;
+  for(let i=0;i<n;i++){
+    maxSteam=Math.max(maxSteam,T.steam[i]);maxConv=Math.max(maxConv,T.conv[i]);
+    maxRefl=Math.max(maxRefl,T.refl[i]);maxSeen=Math.max(maxSeen,T.seen[i]);
+    maxAbs=Math.max(maxAbs,T.absorbed[i]);maxCtrl=Math.max(maxCtrl,T.ctrl[i]);
+    maxRodIn=Math.max(maxRodIn,T.rodIn[i]);
+  }
+  for(let i=0;i<n;i++){
+    const k=l.k[i];
+    let role=0,cls='inert';
+    const classify=(r,mx,floorAbs)=>{
+      if(r>=0.5*mx&&r>=floorAbs)return 'critical';
+      if(r>=0.03*mx||r>=floorAbs)return 'active';
+      return 'idle';
+    };
+    if(k===BOILER){role=T.steam[i];cls=classify(role,maxSteam,1);}
+    else if(k===MODERATOR){role=T.conv[i];cls=classify(role,maxConv,0.5);}
+    else if(k===REFLECTOR){role=T.refl[i];cls=classify(role,maxRefl,0.5);}
+    else if(k===OUTGASSER||k===STORAGE){role=T.seen[i];cls=classify(role,maxSeen,1);}
+    else if(k===ABSORBER){role=T.absorbed[i];cls=classify(role,maxAbs,0.5);}
+    else if(k===COOLER||k===HEATER)cls='active';
+    else if(isRodK(k)){role=T.rodIn[i];cls=FUELS[l.fuel[i]].selfRate>0?'critical':classify(role,maxRodIn,0.5);}
+    else if(isControlK(k)){role=T.ctrl[i];cls=classify(role,maxCtrl,0.5);}
+    out.push({seen:T.on?T.seen[i]:0,role,cls});
+  }
+  return out;
+}
+
+// ---------------------------------------------------------- верификация
+function verifySuite(layout,cfg,nom,cal){
+  const out=[];
+  const push=(id,label,status,value,detail)=>{
+    out.push({id,label,status,value,detail});
+  };
+  {
+    push('steady','Стационарный режим',(nom.molten===0&&nom.failed===0)?'pass':'fail',
+      'keff '+nom.tailKeff.toFixed(2),
+      'прогон '+cfg.finalTicks+' тиков: расплавлений '+nom.molten+', разрушений '+nom.failed);
+  }
+  {
+    push('margin','Запас до плавления',nom.minMargin>=200?'pass':(nom.minMargin>=100?'warn':'fail'),
+      nom.minMargin.toFixed(0)+'°C','минимальный запас по ТВЭЛ за прогон');
+  }
+  {
+    push('keff','Критичность (keff)',(nom.tailKeff>=0.97&&nom.tailKeff<=1.03)?'pass':(nom.tailKeff>=0.9&&nom.tailKeff<=1.1?'warn':'fail'),
+      nom.tailKeff.toFixed(3),'средний keff по последним тикам (цель ~1.0)');
+  }
+  if(cfg.goal==='power'&&cfg.boilerDensity!==2){
+    push('goal','Цель: паровая мощность',nom.tailPower>50?'pass':'fail',
+      fmtNum(nom.tailPower)+' пар-экв/тик',
+      nom.tailPower>50?'мощность достигнута':
+        'цепь может быть живой, но котлы не дают рабочую мощность — попробуйте другое топливо, размер зоны или плотность котлов');
+  }
+  let ctrlCount=0;
+  for(let i=0;i<layout.k.length;i++)if(isControlK(layout.k[i]))ctrlCount++;
+  if(ctrlCount>0){
+    const cl=layout.clone();
+    const savedLevels=[];
+    for(let i=0;i<cl.k.length;i++){
+      if(isControlK(cl.k[i])){savedLevels.push([i,cl.l[i]]);cl.l[i]=0;}
+    }
+    {
+      // как в C++: Sim работает над КОПИЕЙ — ксенон фазы глушения не переходит
+      const clScram=cl.clone();
+      igniteLayout(clScram);
+      const sim=new Sim(clScram);
+      for(let i=0;i<120;i++)sim.tick();
+    }
+    for(const s of savedLevels)cl.l[s[0]]=s[1];
+    igniteLayout(cl);
+    const sim=new Sim(cl);
+    for(let i=0;i<400;i++)sim.tick();
+    const rec=reportLite(sim);
+    let nomMetric,recMetric;
+    if(cfg.goal==='power'&&nom.tailPower>50){nomMetric=nom.tailSteam;recMetric=rec.tailSteam;}
+    else if(cfg.goal==='irradiation'){nomMetric=nom.irradiation;recMetric=rec.irradiation;}
+    else{nomMetric=nom.tailFlux;recMetric=rec.tailFlux;}
+    const ratio=nomMetric>1?recMetric/nomMetric:(recMetric>1?1:0);
+    push('scram','Глушение и ксенон',(rec.molten===0&&ratio>=0.8)?'pass':(rec.molten===0&&ratio>=0.5?'warn':'fail'),
+      'восстановление '+(ratio*100).toFixed(0)+'%',
+      'глушение 120 тиков, затем уровни восстановлены; расплавлений после пуска: '+rec.molten);
+  }else{
+    push('scram','Глушение и ксенон',cfg.controlCount===0?'skip':'fail','нет стержней',
+      cfg.controlCount===0?'стержни отключены настройкой (0)':'в схеме нет управляющих стержней — реактор неуправляем');
+  }
+  if(ctrlCount>0){
+    const st=stopTest(layout);
+    push('stop','Аварийное глушение (АЗ)',st.ok?'pass':'fail',
+      st.reactive?('прирост '+(st.growth>=1?'+':'')+((st.growth-1)*100).toFixed(1)+'% за 40 тиков, keff '+st.keff.toFixed(2))
+        :('остаток потока '+(st.nom>0?(100*st.tail/st.nom).toFixed(1):'0')+'% от номинала'),
+      st.reactive
+        ?'топливо с собственной реактивностью светит всегда — критерий гашения: цепь не растёт (прирост ≤5%) и keff ≤1.05 при полностью погружённых стержнях'
+        :'все стержни СУЗ полностью погружены (0%) на 180 тиков — цепная реакция обязана гаснуть; колонка источника продолжает светить, это норма');
+  }else{
+    push('stop','Аварийное глушение (АЗ)',cfg.controlCount===0?'skip':'fail','нет стержней',
+      cfg.controlCount===0?'стержни отключены настройкой (0)':'в схеме нет управляющих стержней — реактор неостановим');
+  }
+  {
+    let holes=0;
+    const nz=layout.w;
+    for(let z=1;z<nz-1;z++)for(let x=1;x<nz-1;x++)
+      if(layout.k[z*nz+x]===BLANK)holes++;
+    let borderBad=0;
+    for(let z=0;z<nz;z++)for(let x=0;x<nz;x++){
+      if(!(x===0||z===0||x===nz-1||z===nz-1))continue;
+      const k=layout.k[z*nz+x];
+      if(k!==REFLECTOR)borderBad++;
+    }
+    push('seal','Герметичность кладки',(holes===0&&borderBad===0)?'pass':((holes+borderBad)<=2?'warn':'fail'),
+      'пустот внутри: '+holes+(borderBad?', обод с дырами':''),
+      'внутри зоны не должно быть пустых колонн, периметр — сплошное кольцо отражателей');
+  }
+  if(ctrlCount>0){
+    const cl=layout.clone();
+    const jr=new Rng((cfg.seed*31+777)>>>0);
+    for(let i=0;i<cl.k.length;i++){
+      if(isControlK(cl.k[i])){
+        const nl=cl.l[i]+(jr.f()*0.08-0.04);
+        cl.l[i]=Math.max(0,Math.min(1,nl));
+      }
+    }
+    igniteLayout(cl);
+    const sim=new Sim(cl);
+    for(let i=0;i<200;i++)sim.tick();
+    const r=reportLite(sim);
+    push('jitter','Устойчивость к возмущениям',(r.molten===0&&r.tailKeff<=1.08)?'pass':(r.molten===0&&r.tailKeff<=1.15?'warn':'fail'),
+      'keff '+r.tailKeff.toFixed(2),'случайное дрожание уровней стержней ±4%; расплавлений: '+r.molten);
+  }else{
+    push('jitter','Устойчивость к возмущениям',cfg.controlCount===0?'skip':'fail','нет стержней',
+      cfg.controlCount===0?'стержни отключены настройкой (0)':'нечем компенсировать возмущения');
+  }
+  {
+    push('rad','Радиационная утечка',nom.tailRad<5?'pass':(nom.tailRad<15?'warn':'fail'),
+      nom.tailRad.toFixed(1)+' рад/тик','утечка лучей за контур реактора');
+  }
+  if(layout.mode===1){
+    let boilers=0,inlets=0,outlets=0;
+    for(let i=0;i<layout.k.length;i++){
+      if(layout.k[i]===BOILER)boilers++;
+      if(layout.k[i]===STEAM_INLET)inlets++;
+      if(layout.k[i]===STEAM_OUTLET)outlets++;
+    }
+    if(layout.ports&&layout.ports.length)
+      for(const p of layout.ports){
+        if(p.k===STEAM_INLET)inlets++;
+        else if(p.k===STEAM_OUTLET)outlets++;
+      }
+    if(boilers>0){
+      push('ports','Порты ReaSim',(inlets>0&&outlets>0)?'pass':'fail',
+        'входов '+inlets+', выходов '+outlets,
+        'котлам ReaSim нужна подача воды и отбор пара; порты ставятся снаружи, вплотную к отражателям');
+    }
+  }
+  {
+    let hasSource=false,srcX=-1,srcZ=-1;
+    for(let i=0;i<layout.k.length;i++){
+      if(isRodK(layout.k[i])&&isSourceFuel(layout.fuel[i])){
+        hasSource=true;srcX=i%layout.w;srcZ=(i/layout.w)|0;break;
+      }
+    }
+    if(hasSource){
+      const cl=layout.clone();
+      const sim=new Sim(cl);
+      for(let i=0;i<300;i++)sim.tick();
+      const r=reportLite(sim);
+      push('coldstart','Холодный пуск',r.tailFlux>=5?'pass':'fail',
+        'поток '+r.tailFlux.toFixed(0),
+        'розжиг от источника в канале ('+srcX+','+srcZ+'), без внешнего импульса');
+    }else{
+      push('coldstart','Холодный пуск','warn','нет источника',
+        'вставьте источник нейтронов (напр. Po-Be) на ~1 секунду в любой канал ТВЭЛ и выньте — реакция выйдет на режим');
+    }
+  }
+  {
+    if(cal.level>=0){
+      push('calib','Калибровка СУЗ','pass','уровень '+(cal.level*100).toFixed(0)+'%',
+        'перед пуском выставьте стержни на этот уровень (погружение '+((1-cal.level)*100).toFixed(0)+'%)'+(cal.autoTarget>0?'; автостержни держат цель по температуре':''));
+    }else{
+      push('calib','Калибровка СУЗ',cfg.controlCount===0?'skip':'warn','нет стержней','калибровать нечего');
+    }
+  }
+  return out;
+}
+
+// ---------------------------------------------------------- оркестрация
+function parseGenConfig(o){
+  const c={
+    size:Math.round(Math.max(5,Math.min(15,Number(o.size)||9))),
+    mode:o.mode==='reasim'?1:0,
+    goal:String(o.goal||'power'),
+    fuel:fuelIdx(String(o.fuel||'ueu')),
+    requirements:[],
+    targetHeat:Math.max(0.1,Math.min(0.9,Number(o.targetHeat)||0.55)),
+    autoControl:!!o.autoControl,
+    controlCount:-1,reflectorBorder:o.reflectorBorder!==false,
+    maxReflectors:-1,maxAbsorbers:-1,maxModerators:-1,
+    boilerDensity:0,ports:!!o.ports,startupSource:o.startupSource!==false,
+    seed:Math.round(Math.max(0,Math.min(1e9,Number(o.seed)||1))),
+    evaluations:Math.round(Math.max(200,Math.min(60000,Number(o.evaluations)||2000))),
+    starts:Math.round(Math.max(40,Math.min(400,Number(o.starts)||220))),
+    prune:o.prune!==false,verify:o.verify!==false,
+    ticks:Math.round(Math.max(160,Math.min(400,Number(o.ticks)||180))),
+    finalTicks:Math.round(Math.max(100,Math.min(1000,Number(o.finalTicks)||360))),
+    timeCapSec:Math.round(Math.max(30,Math.min(1800,Number(o.timeCapSec)||180)))
+  };
+  if(o.controlCount!=null)c.controlCount=Math.round(Math.max(0,Math.min(80,Number(o.controlCount))));
+  if(o.maxReflectors!=null)c.maxReflectors=Math.round(Number(o.maxReflectors));
+  if(o.maxAbsorbers!=null)c.maxAbsorbers=Math.round(Number(o.maxAbsorbers));
+  if(o.maxModerators!=null)c.maxModerators=Math.round(Number(o.maxModerators));
+  const bd=String(o.boilerDensity||'dense');
+  c.boilerDensity=bd==='sparse'?1:(bd==='none'?2:0);
+  if(Array.isArray(o.requirements)){
+    for(const r of o.requirements){
+      const cnt=Math.round(Math.max(0,Math.min(60,Number(r.count)||0)));
+      if(cnt>0)c.requirements.push({fuel:fuelIdx(String(r.fuelId||'ueu')),count:cnt});
+    }
+  }
+  if(c.mode===1&&o.ports===undefined)c.ports=true;
+  return c;
+}
+
+// ============================================================================
+//  ГЕНЕРАТОР V4 — детерминированные структурные шаблоны (мутаций больше нет).
+//  Регулярная решётка ТВЭЛ с шагом 2-3, графитовые замедлители между
+//  топливом, СУЗ регулярной сеткой (обод + внутренние узлы + зазоры),
+//  сплошное кольцо отражателей по периметру, порты воды/пара ТОЛЬКО
+//  снаружи зоны (вплотную к отражателям), ни одного борного поглотителя
+//  внутри активной зоны. Перебираются сотни регулярных структур, каждая
+//  честно симулируется движком; финалисты проходят калибровку СУЗ,
+//  стоп-тест (полное погружение стержней гасит цепь) и длинный прогон.
+//  Узор финалиста в точности повторяет свой шаблон — «месиво» невозможно.
+// ============================================================================
+
+function setCtrlLevels(l,lv){
+  for(let i=0;i<l.k.length;i++)if(isControlK(l.k[i]))l.l[i]=lv;
+}
+
+// СУЗ для зазоров/перекрёстков: с замедлителем, если топливу нужны медленные
+function gapCtrlKindFor(cfg){
+  if(cfg.mode===1)return CONTROL_REASIM;
+  const f=fuelOf(cfg.fuel);
+  if(f.nIn==='SLOW'&&f.nOut==='FAST')return CONTROL_MOD;
+  return CONTROL;
+}
+
+// клетки-кандидаты для доводки: внутренние зазоры/перекрёстки (не периметр, не узлы решётки)
+function sitesMutable(l,pitch){
+  const out=[];
+  for(let i=0;i<l.k.length;i++){
+    const k=l.k[i];
+    if(k!==MODERATOR&&k!==BOILER&&!isControlK(k))continue;
+    const x=i%l.w,z=(i/l.w)|0;
+    if(x<1||z<1||x>l.w-2||z>l.h-2)continue;
+    if((x-1)%pitch===0&&(z-1)%pitch===0)continue;
+    out.push(i);
+  }
+  return out;
+}
+
+const GAP_NAMES={mod:'графит',ctrlAlt:'СУЗ/графит',ctrlDiag:'СУЗ диагональю',ctrlAll:'сплошные СУЗ',
+  boilAlt:'котёл/графит',boiler:'котлы',modBoil:'графит/котёл'};
+const CROSS_NAMES={boiler:'котлы',boilerAlt:'котёл/графит',mod:'графит',ctrl:'СУЗ'};
+const INNER_NAMES={none:'',grid2:'· СУЗ каждый 2-й узел',grid3:'· СУЗ каждый 3-й узел',
+  grid4:'· СУЗ каждый 4-й узел',checker:'· шахматка ТВЭЛ/СУЗ'};
+
+function descOfSpec(s){
+  const ring=s.ring===1?'сплошной обод СУЗ':(s.ring===2?'обод СУЗ через один':'без обода СУЗ');
+  const inn=INNER_NAMES[s.inner]?' '+INNER_NAMES[s.inner]:'';
+  return 'шаг '+s.pitch+' · '+ring+inn+' · зазоры: '+GAP_NAMES[s.gaps]+
+    ' · перекрёстки: '+CROSS_NAMES[s.cross]+' · порты снаружи (вода+пар)';
+}
+
+// ---------------------------------------------------------------- шаблон
+function buildStructTemplate(cfg,spec){
+  const n=cfg.size;
+  const pitch=spec.pitch;
+  if(n<pitch*2+3)return null;
+  const layout=new Layout(n,n,cfg.mode);
+  const reasim=cfg.mode===1;
+  const rodKind=reasim?ROD_REASIM:ROD;
+  const ctrlKind=reasim?CONTROL_REASIM:CONTROL;
+  const autoKind=reasim?CONTROL_REASIM_AUTO:CONTROL_AUTO;
+  const gapCtrl=gapCtrlKindFor(cfg);
+  const siteAt=v=>v>=1&&v<=n-2&&((v-1)%pitch===0);
+  const nsx=[],nsz=[];
+  for(let v=1;v<=n-2;v++)if((v-1)%pitch===0)nsx.push(v);
+  for(let v=1;v<=n-2;v++)if((v-1)%pitch===0)nsz.push(v);
+  if(nsx.length<2||nsz.length<2)return null;
+  const nx=nsx.length,nzp=nsz.length;
+  const IX=x=>(x-1)/pitch,IZ=z=>(z-1)/pitch;
+  // ---- сплошное отражательное кольцо по периметру: герметичность зоны
+  for(let z=0;z<n;z++)for(let x=0;x<n;x++)
+    if(x===0||z===0||x===n-1||z===n-1)layout.k[z*n+x]=REFLECTOR;
+  // ---- СУЗ на узлах решётки: строго регулярная сетка
+  const ctrl=new Uint8Array(n*n);
+  for(const z of nsz)for(const x of nsx){
+    const i=z*n+x,ix=IX(x),iz=IZ(z);
+    const onRing=ix===0||iz===0||ix===nx-1||iz===nzp-1;
+    let c=false;
+    if(onRing){
+      if(spec.ring===1)c=true;
+      else if(spec.ring===2&&(ix+iz+spec.phase)%2===0)c=true;
+    }else if(spec.inner==='grid2')c=ix%2===spec.phase&&iz%2===spec.phase;
+    else if(spec.inner==='grid3')c=ix%3===1&&iz%3===1;
+    else if(spec.inner==='grid4')c=ix%4===1&&iz%4===1;
+    else if(spec.inner==='checker')c=(ix+iz+spec.phase)%2===0;
+    if(c)ctrl[i]=1;
+  }
+  const fuelSites=[];
+  let ctrlN=0;
+  for(const z of nsz)for(const x of nsx){
+    const i=z*n+x;
+    if(ctrl[i]){layout.k[i]=ctrlKind;layout.l[i]=0.6;ctrlN++;}
+    else fuelSites.push([x,z,i]);
+  }
+  if(fuelSites.length<3||ctrlN<2)return null;
+  // ---- топливо: требования (если заданы) — с краю, прочее — по умолчанию
+  const cx=(n-1)/2,cz=(n-1)/2;
+  const distToEdge=(x,z)=>Math.min(Math.min(x,z),Math.min(n-1-x,n-1-z));
+  const byEdge=fuelSites.slice().sort((a,b)=>distToEdge(a[0],a[1])-distToEdge(b[0],b[1]));
+  const assign=new Map();
+  let si=0;
+  for(const r of cfg.requirements)
+    for(let q=0;q<r.count&&si<byEdge.length;q++){assign.set(byEdge[si][0]+','+byEdge[si][1],r.fuel);si++;}
+  // ---- выделенная колонка источника нейтронов: ближайший к центру узел ТВЭЛ
+  let srcX=-1,srcZ=-1,srcFi=-1;
+  if(cfg.startupSource){
+    let reqHasSource=false;
+    for(const r of cfg.requirements)if(isSourceFuel(r.fuel))reqHasSource=true;
+    if(!reqHasSource){
+      let bi=null,bd=1e18;
+      for(const s of fuelSites){
+        const key=s[0]+','+s[1];
+        const f=assign.has(key)?assign.get(key):cfg.fuel;
+        if(isSourceFuel(f))continue;
+        const d=(s[0]-cx)*(s[0]-cx)+(s[1]-cz)*(s[1]-cz);
+        if(d<bd){bd=d;bi=s;}
+      }
+      if(bi){srcFi=bestSourceFuel();srcX=bi[0];srcZ=bi[1];}
+    }
+  }
+  for(const s of fuelSites){
+    const i=s[2],key=s[0]+','+s[1];
+    layout.k[i]=rodKind;
+    layout.fuel[i]=(srcX===s[0]&&srcZ===s[1])?srcFi:(assign.has(key)?assign.get(key):cfg.fuel);
+    // ВАЖНО: out остаётся 0 — холодный пуск. Розжиг делает колонка источника
+    // (или однотиковый импульс igniteLayout для схем без источника).
+    // Искусственный out=1 на всех ТВЭЛ закидывает симуляцию в «горячий» режим,
+    // которого в игре не бывает, и завышает обещанную мощность примерно вдвое.
+  }
+  // ---- зазоры (на линиях решётки, между ТВЭЛ) и перекрёстки
+  for(let z=1;z<n-1;z++)for(let x=1;x<n-1;x++){
+    const i=z*n+x;
+    if(layout.k[i]!==BLANK)continue;
+    const sx=siteAt(x),sz=siteAt(z);
+    if(sx!==sz){
+      const ix=Math.floor((x-1)/pitch),iz=Math.floor((z-1)/pitch);
+      const alt=pitch===2?((ix+iz+spec.phase)%2===0):(((x+z+spec.phase)%2)===0);
+      let kind=MODERATOR;
+      if(spec.gaps==='ctrlAll')kind=gapCtrl;
+      else if(spec.gaps==='ctrlAlt')kind=alt?gapCtrl:MODERATOR;
+      else if(spec.gaps==='ctrlDiag')kind=((ix+iz)%3===spec.phase)?gapCtrl:MODERATOR;
+      else if(spec.gaps==='boilAlt')kind=alt?BOILER:MODERATOR;
+      else if(spec.gaps==='boiler')kind=BOILER;
+      else if(spec.gaps==='modBoil')kind=alt?MODERATOR:BOILER;
+      layout.k[i]=kind;
+      if(isControlK(kind))layout.l[i]=0.6;
+    }else{
+      let kind=MODERATOR;
+      if(spec.cross==='boiler')kind=BOILER;
+      else if(spec.cross==='boilerAlt')kind=((x+z+spec.phase)%2===0)?BOILER:MODERATOR;
+      else if(spec.cross==='ctrl')kind=gapCtrl;
+      layout.k[i]=kind;
+      if(kind===gapCtrl)layout.l[i]=0.6;
+    }
+  }
+  // ---- автостержни (опция): ближайшие к центру СУЗ узлов становятся АР
+  if(cfg.autoControl){
+    const ctrls=[];
+    for(let i=0;i<n*n;i++)if(layout.k[i]===ctrlKind){
+      const x=i%n,z=(i/n)|0;
+      ctrls.push([i,(x-cx)*(x-cx)+(z-cz)*(z-cz)]);
+    }
+    ctrls.sort((a,b)=>a[1]-b[1]);
+    const na=Math.min(3,ctrls.length>>1);
+    for(let q=0;q<na;q++)layout.k[ctrls[q][0]]=autoKind;
+  }
+  // ---- порты воды/пара: ровно одна пара снаружи, вплотную к отражателям.
+  // Вторая пара ничего не даёт: подача воды и отбор пара в модели булевы,
+  // а в игре пропускной способности одного порта достаточно.
+  layout.ports=[];
+  if(cfg.ports){
+    const mid=Math.floor(n/2);
+    layout.ports.push({x:-1,z:mid,k:STEAM_INLET});
+    layout.ports.push({x:n,z:mid,k:STEAM_OUTLET});
+  }
+  layout.autoTarget=Math.round(cfg.targetHeat*minMeltOf(layout));
+  return {layout,spec,srcX,srcZ,srcFi};
+}
+
+// ---------------------------------------------------------------- пул шаблонов
+function genCandidates(cfg){
+  const out=[];
+  const seen=new Set();
+  const okDensity=s=>{
+    if(cfg.boilerDensity===2){
+      if(s.cross!=='mod')return false;
+      if(s.gaps==='boiler'||s.gaps==='boilAlt'||s.gaps==='modBoil')return false;
+    }else if(cfg.boilerDensity===1&&s.gaps==='boiler')return false;
+    return true;
+  };
+  const push=s=>{
+    const key=[s.pitch,s.ring,s.inner,s.gaps,s.cross,s.phase].join('|');
+    if(seen.has(key))return;
+    seen.add(key);
+    out.push(s);
+  };
+  // гарантированные семейства — всегда в переборе (стоп-безопасные основы)
+  const MUST=[
+    {pitch:2,ring:1,inner:'checker',gaps:'mod',cross:'boiler',phase:0,must:1},
+    {pitch:2,ring:1,inner:'checker',gaps:'mod',cross:'boiler',phase:1,must:1},
+    {pitch:2,ring:1,inner:'grid3',gaps:'mod',cross:'boiler',phase:0,must:1},
+    {pitch:2,ring:1,inner:'none',gaps:'ctrlAlt',cross:'boiler',phase:0,must:1},
+    {pitch:2,ring:1,inner:'none',gaps:'ctrlAll',cross:'mod',phase:0,must:1},
+    {pitch:2,ring:1,inner:'checker',gaps:'mod',cross:'ctrl',phase:0,must:1},
+    {pitch:2,ring:2,inner:'grid3',gaps:'mod',cross:'boiler',phase:0,must:1},
+    {pitch:3,ring:1,inner:'none',gaps:'modBoil',cross:'mod',phase:0,must:1},
+    {pitch:3,ring:2,inner:'grid2',gaps:'ctrlAlt',cross:'mod',phase:0,must:1}
+  ];
+  for(const m of MUST){
+    if(m.pitch===3&&cfg.size<9)continue;
+    if(!okDensity(m))continue;
+    push(m);
+  }
+  const pitches=cfg.size>=9?[2,3]:[2];
+  for(const pitch of pitches){
+    const gapsOpts=pitch===2?['mod','ctrlAlt','ctrlDiag','ctrlAll','boilAlt','boiler','modBoil']
+                            :['mod','ctrlAlt','ctrlDiag','ctrlAll','modBoil','boilAlt'];
+    for(const ring of [1,2]){
+      for(const inner of ['none','grid2','grid3','grid4','checker']){
+        for(const gaps of gapsOpts){
+          for(const cross of ['boiler','boilerAlt','mod','ctrl']){
+            for(const phase of [0,1]){
+              if(cross==='boilerAlt'&&gaps!=='mod')continue;
+              const s={pitch,ring,inner,gaps,cross,phase};
+              if(!okDensity(s))continue;
+              push(s);
+            }
+          }
+        }
+      }
+    }
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------- стоп-тест
+// Полное погружение всех СУЗ обязано гасить цепную реакцию.
+// Колонка источника продолжает светить — это норма, она исключена из метрики.
+// Топливо с собственной реактивностью (balefire, криокриум, америций...) светит
+// всегда и даёт стационарный подкритический поток — для него критерий гашения
+// не нулевой поток, а отсутствие РОСТА цепи (мощность не растёт, keff<=1).
+function stopTest(l){
+  const cl=l.clone();
+  igniteLayout(cl);
+  const sim=new Sim(cl);
+  for(let i=0;i<80;i++)sim.tick();
+  let nom=0,reactive=false;
+  for(let i=0;i<cl.k.length;i++){
+    if(!isRodK(cl.k[i])||isSourceFuel(cl.fuel[i]))continue;
+    nom+=cl.out[i];
+    if(FUELS[cl.fuel[i]].reactivity>=5)reactive=true;
+  }
+  sim.autoOn=false;
+  for(let i=0;i<cl.k.length;i++)if(isControlK(cl.k[i]))cl.l[i]=0;
+  for(let i=0;i<180;i++)sim.tick();
+  let tail=0;
+  for(let i=0;i<cl.k.length;i++)
+    if(isRodK(cl.k[i])&&!isSourceFuel(cl.fuel[i]))tail+=cl.out[i];
+  const S=sim.series;
+  const last=S.length?S[S.length-1]:null;
+  const ref=S.length>40?S[S.length-41]:(S.length?S[0]:null);
+  const keff=last?last.keff:0;
+  const growth=(last&&ref&&ref.outFlux>1)?last.outFlux/ref.outFlux:1;
+  const ok=tail<Math.max(15,nom*0.02)||(reactive&&growth<1.05&&keff<1.05);
+  return {ok,nom:nom,tail:tail,keff:keff,reactive:reactive,growth:growth};
+}
+
+// ---------------------------------------------------------------- оркестрация
+function runGenerate(cfg,emit){
+  const t0=Date.now();
+  const notes=[];
+  let evaluated=0;
+  const countEval=n=>{evaluated+=n;};
+  const elapsed=()=>Date.now()-t0;
+  const goalIs=g=>cfg.goal===g;
+  const deadline=t0+cfg.timeCapSec*1000;
+  emit({phase:'seed',msg:'Построение детерминированных структурных шаблонов...'});
+  // ---- самоплав топлива: честное предупреждение и рабочая замена
+  const fuelSelfMelts=fi=>{
+    const f=fuelOf(fi);
+    if(f.reactivity<=0)return false;
+    return f.reactivity*f.heat>0.8*f.diffusion*(f.melt-20);
+  };
+  if(fuelSelfMelts(cfg.fuel)){
+    const of=fuelOf(cfg.fuel);
+    let alt=-1,bestKey=-1;
+    for(let i=0;i<FUELS.length;i++){
+      if(i===cfg.fuel||fuelSelfMelts(i)||isSourceFuel(i))continue;
+      let key;
+      if(cfg.goal==='power'){
+        const fc=chainFierce(i);
+        if(fc>2.5)continue;
+        key=fc;
+      }else key=FUELS[i].reactivity;
+      if(key>bestKey){bestKey=key;alt=i;}
+    }
+    if(alt>=0&&alt!==cfg.fuel){
+      notes.push('ВНИМАНИЕ: '+of.id+' плавится от собственной реактивности ('+
+        (of.reactivity*of.heat).toFixed(0)+' тепла/тик при пределе теплоотвода '+
+        (0.8*of.diffusion*(of.melt-20)).toFixed(0)+') — устойчивая схема невозможна ни в какой конфигурации. '+
+        'Автоматически использовано ближайшее жизнеспособное топливо: '+fuelOf(alt).id+'.');
+      cfg=Object.assign({},cfg,{fuel:alt});
+    }else{
+      notes.push('ВНИМАНИЕ: топливо '+of.id+' плавится от собственной реактивности — устойчивая схема невозможна.');
+    }
+  }
+  let fierce=chainFierce(cfg.fuel);
+  for(const r of cfg.requirements)fierce=Math.max(fierce,chainFierce(r.fuel));
+  if(cfg.goal==='power'&&cfg.boilerDensity===2)
+    notes.push('ВНИМАНИЕ: плотность котлов «без котлов» — пар не будет генерироваться вовсе; цель «мощность» заменена на поддержание потока (keff ~1.0). Для пара выберите плотную или разреженную раскладку.');
+  // ---- банк кандидатов: полный список шаблонов; волна 1 = настройка «шаблонов на перебор»,
+  // остаток банка подключается, пока позволяет лимит времени
+  const poolFull=genCandidates(cfg);
+  let must=[],rest=[];
+  for(const s of poolFull)(s.must?must:rest).push(s);
+  {
+    const rng=new Rng((cfg.seed*2654435761+7)>>>0);
+    for(let i=rest.length-1;i>0;i--){
+      const j=rng.irand(i+1);
+      const t=rest[i];rest[i]=rest[j];rest[j]=t;
+    }
+  }
+  const waveCap=Math.max(0,cfg.starts-must.length);
+  const wave1=must.concat(rest.slice(0,waveCap));
+  const wave2=rest.slice(waveCap);
+  notes.push('Банк шаблонов: '+poolFull.length+' регулярных решёток (шаг 2-3, графит между топливом, '+
+    'СУЗ регулярной сеткой, сплошное кольцо отражателей, порты снаружи). Настройка «шаблонов на перебор» задаёт '+
+    'первую волну ('+wave1.length+'); далее движок перебирает остаток банка до лимита времени. У каждого живого '+
+    'шаблона сразу проверяется гашение СУЗ — негасимые не могут стать победителями.');
+  // ---- стадия 1: честная симуляция шаблона + скрининг стоп-теста.
+  // Ранжир для финалистов — целевая метрика (мощность/поток): предварительный счёт
+  // на коротком прогоне топит мощные шаблоны из-за перегрева до калибровки.
+  const rankOf=r=>{
+    if(cfg.goal==='power'&&cfg.boilerDensity!==2)return r.tailPower;
+    if(cfg.goal==='burnup'||cfg.goal==='irradiation')return r.tailFlux;
+    return null;
+  };
+  const results=[];
+  let bestScore=-1e18,searched=0;
+  const lvls=fierce>2.5?[0.25,0.55,0.85]:[0.85,0.55,0.3];
+  const specKey=s=>[s.pitch,s.ring,s.inner,s.gaps,s.cross,s.phase].join('|');
+  const seenKeys=new Set();
+  const assessSpec=spec=>{
+    const key=specKey(spec);
+    if(seenKeys.has(key))return;
+    seenKeys.add(key);
+    searched++;
+    const b=buildStructTemplate(cfg,spec);
+    if(!b){results.push({desc:descOfSpec(spec),score:-1e9,power:0,keff:0,flux:0,dead:1});return;}
+    let bestEv=null,usedLv=lvls[0];
+    for(const lv of lvls){
+      setCtrlLevels(b.layout,lv);
+      const ev=evaluate(b.layout,cfg,120,0);
+      countEval(1);
+      if(!bestEv||ev.score>bestEv.score){bestEv=ev;usedLv=lv;}
+    }
+    setCtrlLevels(b.layout,usedLv);
+    let stopQuick=null;
+    if(bestEv.score>-1e8){
+      const sq=stopTest(b.layout);
+      countEval(2);
+      if(sq.ok)stopQuick=sq;
+    }
+    const rk=rankOf(bestEv.r);
+    results.push({spec,layout:b.layout,desc:descOfSpec(spec),score:bestEv.score,
+      power:bestEv.r.tailPower,keff:bestEv.r.tailKeff,flux:bestEv.r.tailFlux,
+      preRank:rk==null?bestEv.score:rk,stopQuick,dead:0});
+    if(bestEv.score>bestScore)bestScore=bestEv.score;
+  };
+  emit({phase:'anneal',msg:'Волна 1: честная симуляция '+wave1.length+' шаблонов...'});
+  for(let ci=0;ci<wave1.length;ci++){
+    if(Date.now()>deadline){
+      notes.push('Лимит времени: волна 1 прервана на шаблоне '+(ci+1)+' из '+wave1.length+'.');
+      break;
+    }
+    assessSpec(wave1[ci]);
+    if(ci%3===0||ci===wave1.length-1)
+      emit({phase:'anneal',start:ci+1,total:poolFull.length,best:bestScore,evaluated,
+        elapsedMs:elapsed(),msg:'Волна 1: шаблон '+(ci+1)+'/'+wave1.length+' · лучший счёт '+
+        (bestScore>-1e17?bestScore.toFixed(0):'—')});
+  }
+  // ---- волна 2: эскалация плотности СУЗ — СРАЗУ после волны 1, пока время есть,
+  // если среди просмотренных нет ни одного живого гасимого шаблона
+  if(!results.some(r=>r.stopQuick&&r.score>-1e8)&&Date.now()<deadline){
+    emit({phase:'anneal',msg:'Ни один шаблон не гасится СУЗ — эскалация: уплотняю сетку стержней...'});
+    const esc=[];
+    for(const pitch of (cfg.size>=9?[2,3]:[2]))
+      for(const gaps of ['ctrlAll','ctrlAlt','ctrlDiag'])
+        for(const cross of ['mod','ctrl'])
+          for(const inner of ['checker','grid2','none'])
+            for(const phase of [0,1])
+              esc.push({pitch,ring:1,inner,gaps,cross,phase});
+    let done=0;
+    for(const spec of esc){
+      if(Date.now()>deadline)break;
+      assessSpec(spec);
+      done++;
+    }
+    notes.push('Эскалация СУЗ: дополнительно оценено '+done+' шаблонов с уплотнённой сеткой стержней (СУЗ в зазорах решётки).');
+  }
+  // ---- волна 3: остаток банка, пока есть время — ищем лучше
+  if(wave2.length&&Date.now()<deadline){
+    emit({phase:'anneal',msg:'Волна 2: подключаю остаток банка ('+wave2.length+' шаблонов)...'});
+    for(let q=0;q<wave2.length;q++){
+      if(Date.now()>deadline){
+        notes.push('Лимит времени: волна 2 прервана, просмотрено '+q+' из '+wave2.length+' дополнительных шаблонов.');
+        break;
+      }
+      assessSpec(wave2[q]);
+      if(q%5===0||q===wave2.length-1)
+        emit({phase:'anneal',start:wave1.length+q+1,total:poolFull.length,best:bestScore,evaluated,
+          elapsedMs:elapsed(),msg:'Волна 2: шаблон '+(q+1)+'/'+wave2.length+' (всего '+searched+'/'+poolFull.length+') · лучший счёт '+
+          (bestScore>-1e17?bestScore.toFixed(0):'—')});
+    }
+  }
+  // ---- ранжирование и срез финалистов.
+  // Первый ключ — жизнеспособность (гасится + живая). Внутри — две корзины:
+  // «самые мощные» (целевая метрика) и «самые стабильные» (счёт со штрафами за перегрев),
+  // чтобы горячие быстрые шаблоны не вытеснили надёжные с медленным разгоном.
+  const ranked=rankOf({tailPower:0,tailFlux:0});
+  const viv=r=>(r.stopQuick&&r.score>-1e8)?1:0;
+  const alive=results.filter(r=>!r.dead);
+  const byRank=alive.slice().sort((a,b)=>viv(b)-viv(a)||((b.preRank||0)-(a.preRank||0)));
+  const byScore=alive.slice().sort((a,b)=>viv(b)-viv(a)||(b.score-a.score));
+  const finalists=[];
+  const seenF=new Set();
+  for(let i=0;i<16&&i<byRank.length;i++){finalists.push(byRank[i]);seenF.add(byRank[i]);}
+  for(let i=0;finalists.length<24&&i<byScore.length;i++)
+    if(!seenF.has(byScore[i])){finalists.push(byScore[i]);seenF.add(byScore[i]);}
+  let winner=null,finalistsDone=0;
+  const viableList=[];
+  for(let k=0;k<finalists.length;k++){
+    const r=finalists[k];
+    if(Date.now()>deadline-1500)break;
+    emit({phase:'verify',iter:k+1,total:finalists.length,evaluated,elapsedMs:elapsed(),
+      msg:'Финалист '+(k+1)+'/'+finalists.length+': калибровка СУЗ, стоп-тест, прогон '+cfg.finalTicks+' тиков...'});
+    calibrate(r.layout,cfg,cfg.ticks,8);
+    countEval(12);
+    const fe=evaluate(r.layout,cfg,cfg.finalTicks,2);
+    countEval(1);
+    const st=stopTest(r.layout);
+    countEval(3);
+    r.final=fe;r.stop=st;r.done=1;finalistsDone++;
+    const viable=fe.r.molten===0&&fe.r.failed===0&&st.ok&&
+      ((goalIs('power')&&cfg.boilerDensity!==2)?fe.r.tailPower>50:fe.r.tailFlux>=5);
+    if(viable)viableList.push(r);
+  }
+  if(viableList.length)
+    winner=viableList.reduce((a,b)=>b.final.score>a.final.score?b:a);
+  if(!winner){
+    for(const r of finalists){
+      if(!r.done)continue;
+      if(r.final.r.molten===0&&r.final.r.failed===0&&r.stop.ok&&r.final.r.tailFlux>=5){winner=r;break;}
+    }
+  }
+  if(!winner){
+    // среди проверенных финалистов — наименее плохой по final-счёту
+    let bestF=null;
+    for(const r of finalists)if(r.done&&(!bestF||r.final.score>bestF.final.score))bestF=r;
+    if(bestF){
+      winner=bestF;
+      notes.push('ВНИМАНИЕ: ни один финалист не прошёл стоп-тест и мощность одновременно — оставлен лучший из проверенных, смотрите верификацию.');
+    }
+  }
+  if(!winner){
+    for(const r of byScore){winner=r;break;}
+    if(winner){
+      calibrate(winner.layout,cfg,cfg.ticks,8);
+      countEval(12);
+      winner.final=evaluate(winner.layout,cfg,cfg.finalTicks,2);
+      countEval(1);
+      winner.stop=stopTest(winner.layout);
+      countEval(3);
+      winner.done=1;finalistsDone++;
+      notes.push('ВНИМАНИЕ: финалисты не успели — оставлен лучший по счёту из перебора, смотрите верификацию.');
+    }
+  }
+  if(!winner){
+    const b=buildStructTemplate(cfg,{pitch:2,ring:1,inner:'checker',gaps:'mod',cross:'boiler',phase:0,must:1});
+    if(!b){
+      emit({phase:'verify',evaluated,elapsedMs:elapsed(),msg:'Схема невозможна для этих параметров.'});
+      const l0=new Layout(cfg.size,cfg.size,cfg.mode);
+      const s0=new Sim(l0);igniteLayout(l0);
+      for(let i=0;i<10;i++)s0.tick();
+      return {layout:layoutToJson(l0),report:reportToJson(s0),
+        diagnostics:{strategy:'Структурный перебор v4',goal:cfg.goal,score:-1e9,template:'—',evaluated,
+          timeMs:elapsed(),calibLevel:null,
+          calibration:{level:null,autoTarget:null,overcritical:false,dead:true,steps:[],note:'сетка слишком мала'},
+          notes:['Сетка слишком мала для решётки — увеличьте размер зоны.'],
+          counts:{rods:0,controls:0,boilers:0,reflectors:0,moderators:0,absorbers:0,outgassers:0,blanks:0},fuelMix:[]},
+        verification:{overall:'fail',checks:[]},pruning:[],participation:[],
+        stats:{evaluated,timeMs:elapsed(),pruned:0,poolTotal:0,finalists:0,candidates:[]}};
+    }
+    winner={spec:b.spec,layout:b.layout,desc:descOfSpec(b.spec),score:-1e9,done:1,
+      final:evaluate(b.layout,cfg,cfg.finalTicks,2),stop:stopTest(b.layout)};
+    countEval(4);
+    results.push(winner);
+  }
+  const best=winner.layout;
+  let bestScore2=winner.final?winner.final.score:winner.score;
+  // ---- доводка: точечный перебор заполнения зазоров — движок работает до конца лимита времени.
+  // Решётка ТВЭЛ/СУЗ неприкосновенна: меняется только заливка промежутков (графит/котёл/СУЗ).
+  const polish={iters:0,accepted:0,reverted:false};
+  {
+    const tEnd=deadline-2500;
+    const pitch=(winner.spec&&winner.spec.pitch)||2;
+    const sites=sitesMutable(best,pitch);
+    if(Date.now()<tEnd&&sites.length>0){
+      emit({phase:'polish',evaluated,elapsedMs:elapsed(),
+        msg:'Доводка: точечный подбор заливки зазоров (графит/котёл/СУЗ) до конца лимита времени...'});
+      const gapCtrl=gapCtrlKindFor(cfg);
+      const kinds=[];
+      if(cfg.boilerDensity!==2)kinds.push(BOILER);
+      kinds.push(MODERATOR,gapCtrl);
+      let ctrlLv=0.6;
+      {
+        let s=0,n=0;
+        for(let i=0;i<best.k.length;i++)if(isControlK(best.k[i])){s+=best.l[i];n++;}
+        if(n>0)ctrlLv=s/n;
+      }
+      const rng=new Rng(((cfg.seed^0x5f356495)>>>0)>>>0);
+      const snapshot=best.clone();
+      const baseScore=bestScore2;
+      const baseStopOk=!!(winner.stop&&winner.stop.ok);
+      while(Date.now()<tEnd){
+        polish.iters++;
+        const cand=best.clone();
+        const nm=1+rng.irand(Math.min(4,Math.max(1,sites.length>>4)));
+        for(let m=0;m<nm;m++){
+          const i=sites[rng.irand(sites.length)];
+          cand.k[i]=kinds[rng.irand(kinds.length)];
+          cand.l[i]=isControlK(cand.k[i])?ctrlLv:0;
+        }
+        const ev=evaluate(cand,cfg,180,0);
+        countEval(1);
+        if(ev.score>bestScore2&&ev.r.molten===0&&ev.r.failed===0){
+          best.copyFrom(cand);
+          bestScore2=ev.score;
+          polish.accepted++;
+        }
+        if(polish.iters%10===0)
+          emit({phase:'polish',evaluated,elapsedMs:elapsed(),best:bestScore2,
+            msg:'Доводка: проба '+polish.iters+' · принято '+polish.accepted+' · счёт '+
+              (bestScore2>-1e17?bestScore2.toFixed(0):'—')});
+      }
+      if(polish.accepted>0){
+        // контроль после доводки: гашение и полный прогон; деградация — откат
+        const st2=stopTest(best);
+        const fe2=evaluate(best,cfg,cfg.finalTicks,2);
+        countEval(4);
+        const nowViable=fe2.r.molten===0&&fe2.r.failed===0&&st2.ok&&
+          ((goalIs('power')&&cfg.boilerDensity!==2)?fe2.r.tailPower>50:fe2.r.tailFlux>=5);
+        if((baseStopOk&&!st2.ok)||fe2.r.molten>0||fe2.r.failed>0||(!nowViable&&baseScore>-1e8&&fe2.score<baseScore)){
+          best.copyFrom(snapshot);
+          bestScore2=baseScore;
+          polish.reverted=true;
+          notes.push('Доводка отменена: после правок схема деградировала — возвращён исходный узор.');
+        }else{
+          winner.final=fe2;winner.stop=st2;
+          notes.push('Доводка: принято '+polish.accepted+' правок из '+polish.iters+" проб ("+
+            (elapsed()/1000).toFixed(1)+' с перебора). Менялась только заливка зазоров — решётка ТВЭЛ/СУЗ не тронута.');
+        }
+      }else{
+        notes.push('Доводка: '+polish.iters+" проб — улучшений не найдено, узор шаблона уже оптимален.");
+      }
+    }
+  }
+  // ---- чистка (опция, по умолчанию выключена — сохраняет регулярный узор)
+  let pruned=0,pruneLog=[];
+  if(cfg.prune){
+    emit({phase:'prune',evaluated,elapsedMs:elapsed(),msg:'Чистка: поиск компонентов, не участвующих в работе...'});
+    const beforePrune=best.clone();
+    const scoreBefore=bestScore2;
+    const pp=prunePass(best,cfg,cfg.ticks,bestScore2);
+    pruned=pp.removed;pruneLog=pp.entries;bestScore2=pp.score;
+    if(pruned>0){
+      calibrate(best,cfg,cfg.ticks,9);
+      countEval(11);
+      const post=evaluate(best,cfg,cfg.finalTicks,0);
+      countEval(1);
+      if(post.r.molten>0||post.r.failed>0||post.r.tailFlux<5){
+        best.copyFrom(beforePrune);bestScore2=scoreBefore;pruned=0;pruneLog=[];
+        notes.push('Чистка отменена: после неё схема деградирует.');
+      }else{
+        notes.push('Чистка: заменено графитом '+pruned+' бесполезных компонент.');
+        bestScore2=post.score;
+      }
+    }
+  }
+  // ---- герметизация (страховка: внутри зоны не должно быть пустот)
+  {
+    let sealed=0;
+    for(let i=0;i<best.k.length;i++){
+      if(best.k[i]!==BLANK)continue;
+      const x=i%best.w,z=(i/best.w)|0;
+      if(x===0||z===0||x===best.w-1||z===best.h-1)continue;
+      best.k[i]=MODERATOR;sealed++;
+    }
+    if(sealed>0)notes.push('Герметизация: запечатано графитом '+sealed+' внутренних пустот.');
+  }
+  // ---- финальная калибровка и контрольный прогон
+  emit({phase:'verify',evaluated,elapsedMs:elapsed(),msg:'Финальная калибровка, прогон и верификация схемы...'});
+  const calib=calibrate(best,cfg,cfg.ticks,12);
+  countEval(14);
+  let report,T;
+  {
+    const cl=best.clone();
+    igniteLayout(cl);
+    const sim=new Sim(cl);
+    sim.initTrack(cl.k.length,Math.floor(cfg.finalTicks/2),2);
+    for(let i=0;i<cfg.finalTicks;i++)sim.tick();
+    report=reportLite(sim);
+    T=sim.T;
+  }
+  if(report.molten>0){
+    const ctrls=[];
+    for(let i=0;i<best.k.length;i++)if(isControlK(best.k[i]))ctrls.push(i);
+    for(let guard=0;guard<6&&ctrls.length>0;guard++){
+      let minL=2;
+      for(const i of ctrls)minL=Math.min(minL,best.l[i]);
+      if(minL<=0.03)break;
+      for(const i of ctrls)best.l[i]=Math.max(0.02,best.l[i]*0.6);
+      const cl=best.clone();
+      igniteLayout(cl);
+      const sim=new Sim(cl);
+      for(let i=0;i<cfg.finalTicks;i++)sim.tick();
+      const r2=reportLite(sim);
+      countEval(1);
+      if(r2.molten===0){report=r2;notes.push('Автоспуск: стержни прикрыты, плавление устранено.');break;}
+    }
+  }
+  let checks=[];
+  if(cfg.verify)checks=verifySuite(best,cfg,report,calib);
+  const participation=computeParticipation(best,T);
+  // ---- заметки
+  let srcX=-1,srcZ=-1,srcFi=-1;
+  for(let i=0;i<best.k.length;i++)
+    if(isRodK(best.k[i])&&isSourceFuel(best.fuel[i])){srcX=i%best.w;srcZ=(i/best.w)|0;srcFi=best.fuel[i];break;}
+  {
+    const cnt=countBlocks(best);
+    notes.unshift('Шаблон-победитель: '+winner.desc+'.');
+    notes.push('Кладка: ТВЭЛ '+cnt.rods+' (источник '+(srcX>=0?'в ('+srcX+','+srcZ+')':'—')+
+      '), СУЗ '+cnt.controls+', котлов '+cnt.boilers+', графита '+cnt.moderators+
+      ', отражателей '+cnt.reflectors+' (сплошное кольцо). Борных поглотителей внутри зоны: 0 — нейтроны удерживает отражательный обод.');
+    if(best.ports&&best.ports.length){
+      notes.push('Порты воды/пара: '+best.ports.length+' шт., все СНАРУЗИ зоны и вплотную к отражателям — в игре порт подключается к любой колонне РБМК снаружи, полезных клеток он не занимает.');
+    }else if(!cfg.ports&&best.mode===1){
+      notes.push('Порты отключены настройкой: в ReaSim котлы без подачи воды пар не дадут.');
+    }
+    if(srcX>=0)
+      notes.push('Источник нейтронов: отдельная колонка '+fuelOf(srcFi).id+' в ('+srcX+','+srcZ+
+        ') — на схеме обведена зелёным контуром. Держите её при пуске около секунды; когда цепь стала самоподдерживающейся, канал можно заменить обычным ТВЭЛ.');
+    if(calib.level>=0){
+      let anyAuto=false;
+      for(let i=0;i<best.k.length;i++)if(isAutoK(best.k[i]))anyAuto=true;
+      if(cnt.controls>0)
+        notes.push('Калибровка СУЗ: рабочий уровень '+(calib.level*100).toFixed(0)+
+          '% (погружение '+((1-calib.level)*100).toFixed(0)+'%), '+calib.steps.length+
+          ' проб. Перед пуском выставьте стержни на этот уровень'+
+          (anyAuto?' — автостержни далее держат температуру сами':' — управление с консоли РБМК')+'.');
+    }
+    notes.push('Победитель выбран из банка '+poolFull.length+' шаблонов: просмотрено '+searched+
+      ', симуляций '+evaluated+', финалистов проверено '+finalistsDone+
+      ', доводка '+polish.iters+' проб.');
+    const mixN={};
+    for(let i=0;i<best.k.length;i++)if(isRodK(best.k[i]))mixN[best.fuel[i]]=(mixN[best.fuel[i]]||0)+1;
+    const keys=Object.keys(mixN);
+    if(keys.length>1){
+      let worst=1;
+      for(const a of keys)for(const b of keys){
+        if(a===b)continue;
+        worst=Math.min(worst,neutronCompat(fuelOf(+a).nOut,fuelOf(+b).nIn));
+      }
+      if(worst<1)notes.push('Смешанный спектр: совместимость нейтронов между сортами топлива '+worst.toFixed(2)+'.');
+    }
+    if(report.tailKeff>0&&report.tailKeff<0.85)
+      notes.push('Схема подкритична: увеличьте размер зоны или возьмите топливо пожёстче.');
+  }
+  // ---- итоговый JSON
+  const finalSim=(()=>{
+    const cl=best.clone();
+    igniteLayout(cl);
+    const sim=new Sim(cl);
+    for(let i=0;i<cfg.finalTicks;i++)sim.tick();
+    return sim;
+  })();
+  const cnt=countBlocks(best);
+  const mix={};
+  for(let i=0;i<best.k.length;i++)if(isRodK(best.k[i]))mix[best.fuel[i]]=(mix[best.fuel[i]]||0)+1;
+  const candTop=finalists.slice(0,12).map((r,i)=>({rank:i+1,desc:r.desc,score:r.score,
+    power:r.done&&r.final?r.final.r.tailPower:r.power,
+    keff:r.done&&r.final?r.final.r.tailKeff:r.keff,
+    stop:r.done?(r.stop&&r.stop.ok?'pass':'fail'):'—',
+    winner:r===winner}));
+  return {
+    layout:layoutToJson(best),
+    report:reportToJson(finalSim),
+    diagnostics:{
+      strategy:'Структурный перебор v5: банк '+poolFull.length+' шаблонов (просмотрено '+searched+
+        '), скрининг гашения у каждого, финалистов '+finalistsDone+', доводка '+polish.iters+" проб, "+
+        evaluated+' симуляций (Web Worker)',
+      goal:cfg.goal,score:bestScore2,template:winner.desc,evaluated,timeMs:elapsed(),
+      calibLevel:calib.level>=0?calib.level:null,
+      calibration:{level:calib.level>=0?calib.level:null,autoTarget:calib.autoTarget>0?calib.autoTarget:null,
+        overcritical:calib.overcritical,dead:calib.dead,steps:calib.steps,note:calib.note},
+      notes,
+      counts:cnt,
+      fuelMix:Object.keys(mix).map(fi=>({fuelId:fuelOf(+fi).id,count:mix[fi]}))
+    },
+    verification:{
+      overall:checks.some(c=>c.status==='fail')?'fail':(checks.some(c=>c.status==='warn')?'warn':(checks.length?'pass':'warn')),
+      checks
+    },
+    pruning:pruneLog,
+    participation,
+    stats:{evaluated,timeMs:elapsed(),pruned,poolTotal:poolFull.length,searched,
+      finalists:finalistsDone,polishIters:polish.iters,polishAccepted:polish.accepted,
+      polishReverted:polish.reverted?1:0,candidates:candTop}
+  };
+}
+
+// ---------------------------------------------------------------- протокол воркера
+let simState=null;
+self.onmessage=function(e){
+  const req=e.data||{};
+  const id=req.id|0;
+  const reply=o=>{o.id=id;self.postMessage(o);};
+  try{
+    if(req.cmd==='ping'){
+      reply({event:'pong',engine:'js',version:'4.0-offline'});
+    }else if(req.cmd==='meta'){
+      reply({event:'done',
+        fuels:FUELS.map(f=>({id:f.id,label:f.label,cat:f.cat,source:f.source,melt:f.melt})),
+        kinds:KIND_IDS.map((k,i)=>({id:k,label:KIND_LABELS[i],code:KIND_CODES[i],color:KIND_COLORS[i],physics:PHYSICS[i]}))});
+    }else if(req.cmd==='generate'){
+      const cfg=parseGenConfig(req.config||{});
+      const res=runGenerate(cfg,p=>reply(Object.assign({event:'progress'},p)));
+      reply({event:'done',result:res});
+    }else if(req.cmd==='simulate'){
+      const l=parseLayout(req.layout||{});
+      const ticks=Math.round(Math.max(1,Math.min(2000,Number(req.ticks)||130)));
+      igniteLayout(l);
+      const sim=new Sim(l);
+      for(let i=0;i<ticks;i++)sim.tick();
+      reply({event:'done',report:reportToJson(sim)});
+    }else if(req.cmd==='analyze'){
+      const l=parseLayout(req.layout||{});
+      const ticks=Math.round(Math.max(40,Math.min(1000,Number(req.ticks)||300)));
+      igniteLayout(l);
+      const sim=new Sim(l);
+      sim.initTrack(l.k.length,Math.floor(ticks/2),2);
+      for(let i=0;i<ticks;i++)sim.tick();
+      const r=reportLite(sim);
+      const part=computeParticipation(l,sim.T);
+      const sug=[];
+      let critical=0,active=0,idle=0,inert=0;
+      const idleList=[];
+      for(let i=0;i<part.length;i++){
+        const cls=part[i].cls;
+        if(cls==='critical')critical++;
+        else if(cls==='active')active++;
+        else if(cls==='idle'){idle++;idleList.push([part[i].role,i]);}
+        else inert++;
+      }
+      idleList.sort((a,b)=>a[0]-b[0]);
+      for(let j=0;j<idleList.length&&j<12;j++){
+        const i=idleList[j][1];
+        sug.push({x:i%l.w,z:(i/l.w)|0,kind:KIND_IDS[l.k[i]],role:roleStr(l,sim.T,i),reason:reasonStr(l,sim.T,i)});
+      }
+      reply({event:'done',participation:part,suggestions:sug,
+        summary:{critical,active,idle,inert,keff:r.tailKeff,maxCore:r.maxCore,steamPerTick:r.steamPerTick,radPerTick:r.radPerTick}});
+    }else if(req.cmd==='simLoad'){
+      const l=parseLayout(req.layout||{});
+      let hasSource=false;
+      for(let i=0;i<l.k.length;i++)
+        if(isRodK(l.k[i])&&(FUELS[l.fuel[i]].source||FUELS[l.fuel[i]].reactivity>0))hasSource=true;
+      if(!hasSource)for(let i=0;i<l.k.length;i++)if(isRodK(l.k[i]))l.out[i]=1;
+      simState=new Sim(l);
+      reply({event:'done',tick:0});
+    }else if(req.cmd==='simRun'){
+      if(!simState)throw new Error('симуляция не загружена');
+      const ticks=Math.round(Math.max(1,Math.min(2000,Number(req.ticks)||1)));
+      for(let i=0;i<ticks;i++)simState.tick();
+      const L=simState.L;
+      let molten=0,failed=0,steam=0,maxCore=20,maxHull=20;
+      for(let j=0;j<L.k.length;j++){
+        if(L.molten[j])molten++;
+        if(L.failed[j])failed++;
+        steam+=L.steamMade[j];
+        if(L.hc[j]>maxCore)maxCore=L.hc[j];
+        if(L.hh[j]>maxHull)maxHull=L.hh[j];
+      }
+      const last=simState.series.length?simState.series[simState.series.length-1]:null;
+      const cs=[];
+      for(let j=0;j<L.k.length;j++){
+        cs.push({hc:L.hc[j],hh:L.hh[j],sIn:L.sIn[j],fIn:L.fIn[j],out:L.out[j],xen:L.xen[j],burn:L.burn[j],seen:L.seen[j],molten:!!L.molten[j],failed:!!L.failed[j]});
+      }
+      reply({event:'done',tick:simState.ticks,power:last?last.power:0,keff:last?last.keff:0,
+        outFlux:last?last.outFlux:0,steam,maxCore,maxHull,rad:last?last.rad:0,molten,failed,cellStats:cs});
+    }else{
+      reply({event:'error',error:'неизвестная команда: '+req.cmd});
+    }
+  }catch(err){
+    reply({event:'error',error:(err&&err.message)?err.message:String(err)});
+  }
+};
+
+// ---------------------------------------------------------------- метаданные для UI
+const KIND_LABELS=['Топливный канал','ТВЭЛ с замедлителем','ТВЭЛ ReaSim','ТВЭЛ ReaSim с замедлителем',
+'Управляющий стержень','Стержень с замедлителем','Автоматический регулятор','Стержень ReaSim','Автоматический регулятор ReaSim',
+'Пустая колонна','Котёл','Отражатель','Борный поглотитель','Графитовый замедлитель','Дегазатор','Хранилище',
+'Охладитель','Нагреватель','Вход воды','Выход пара','Консоль','Загрузчик','Автозагрузчик'];
+const KIND_CODES=['Т','ТМ','РС','РСМ','У','УМ','А','РУ','РА','','Б','О','П','М','Д','Х','ХЛ','Н','ВХ','ВЫ','К','З','АЗ'];
+const KIND_COLORS=['#f59e0b','#fbbf24','#f97316','#fb923c','#10b981','#34d399','#6ee7b7','#0d9488','#2dd4bf',
+'#27272a','#0891b2','#d6d3d1','#991b1b','#52525b','#a3e635','#65a30d','#67e8f9','#ef4444','#5eead4','#fdba74','#a78bfa','#8b5cf6','#c084fc'];
+const PHYSICS=[1,1,1,1,1,1,1,1,1,0,1,1,1,1,1,1,1,1,0,0,0,0,0];
+</script>
+
+<!-- =====================================================================
+     ИНТЕРФЕЙС
+====================================================================== -->
+<script>
+'use strict';
+const $=s=>document.querySelector(s);
+const $$=s=>Array.from(document.querySelectorAll(s));
+
+// ---------------------------------------------------------------- воркер
+let worker=null;
+const pending=new Map();
+let nextId=1;
+function ensureWorker(){
+  if(worker)return worker;
+  const src=document.getElementById('worker-src').textContent;
+  worker=new Worker(URL.createObjectURL(new Blob([src],{type:'text/javascript'})));
+  worker.onmessage=e=>{
+    const o=e.data||{};
+    const p=pending.get(o.id);
+    if(!p)return;
+    if(o.event==='progress'){p.onProgress&&p.onProgress(o);}
+    else if(o.event==='done'){pending.delete(o.id);p.resolve(o);}
+    else if(o.event==='error'){pending.delete(o.id);p.reject(new Error(o.error||'ошибка движка'));}
+  };
+  worker.onerror=e=>{logLine('err','Ошибка воркера: '+(e.message||'?'));};
+  return worker;
+}
+function killWorker(){
+  if(worker){worker.terminate();worker=null;}
+  for(const[,p]of pending)p.reject(new Error('операция отменена'));
+  pending.clear();
+}
+function rpc(cmd,payload,onProgress){
+  const w=ensureWorker();
+  const id=nextId++;
+  return new Promise((resolve,reject)=>{
+    pending.set(id,{resolve,reject,onProgress});
+    w.postMessage(Object.assign({id,cmd},payload||{}));
+  });
+}
+
+// ---------------------------------------------------------------- метаданные
+let META=null;
+const FUEL_BY_ID={};
+function fuelShort(id){
+  const f=FUEL_BY_ID[id];
+  if(!f)return id;
+  const m=f.label.match(/\(([^)]+)\)/);
+  if(m)return m[1].replace(/-/g,'');
+  return id.slice(0,4).toUpperCase();
+}
+
+// ---------------------------------------------------------------- состояние
+const state={
+  layout:{v:2,w:9,h:9,mode:'normal',autoTarget:0,cells:[],ports:[]},
+  cellStats:null,
+  report:null,diagnostics:null,checks:null,participation:null,prune:null,
+  tool:{kind:'rod',fuel:'ueu',level:1},
+  heatmap:'blocks',
+  running:false,speed:40,simSeries:[],
+};
+function makeCells(n,fill){
+  const cells=[];
+  for(let i=0;i<n*n;i++)cells.push({k:fill||'blank',f:'ueu',l:1});
+  return cells;
+}
+state.layout.cells=makeCells(9);
+function compactLayout(){
+  return {w:state.layout.w,h:state.layout.h,mode:state.layout.mode,autoTarget:state.layout.autoTarget||undefined,
+    cells:state.layout.cells.map(c=>({k:c.k,f:c.f,l:c.l})),
+    ports:(state.layout.ports||[]).map(p=>({x:p.x,z:p.z,k:p.k}))};
+}
+function adoptLayout(l){
+  const w=Math.max(1,Math.min(24,l.w|0)),h=Math.max(1,Math.min(24,(l.h|0)||w));
+  const cells=[];
+  for(let i=0;i<w*h;i++){
+    const c=(l.cells&&l.cells[i])||{};
+    cells.push({k:KIND_IDS_SET.has(c.k)?c.k:'blank',f:FUEL_BY_ID[c.f]?c.f:'ueu',l:Number.isFinite(c.l)?Math.max(0,Math.min(1,c.l)):1});
+  }
+  const ports=[];
+  if(Array.isArray(l.ports))
+    for(const p of l.ports){
+      if(!p||(p.k!=='steam_inlet'&&p.k!=='steam_outlet'))continue;
+      if(!Number.isFinite(+p.x)||!Number.isFinite(+p.z))continue;
+      ports.push({x:Math.round(+p.x),z:Math.round(+p.z),k:p.k});
+    }
+  state.layout={v:2,w,h,mode:l.mode==='reasim'?'reasim':'normal',autoTarget:l.autoTarget||0,cells,ports};
+  state.cellStats=null;state.report=null;state.diagnostics=null;state.checks=null;state.participation=null;
+  $('#scheme-resize').value=String(w);
+  $('#scheme-mode').value=state.layout.mode;
+  drawGrid();updateSchemeHeader();
+}
+const KIND_IDS_SET=new Set(['rod','rod_mod','rod_reasim','rod_reasim_mod','control','control_mod','control_auto','control_reasim','control_reasim_auto','blank','boiler','reflector','absorber','moderator','outgasser','storage','cooler','heater','steam_inlet','steam_outlet','console','loader','autoloader']);
+
+// ---------------------------------------------------------------- вкладки
+$$('.tabs button').forEach(b=>{
+  b.addEventListener('click',()=>{
+    $$('.tabs button').forEach(x=>x.classList.toggle('on',x===b));
+    $$('.tabpane').forEach(p=>p.classList.toggle('on',p.id==='tab-'+b.dataset.tab));
+    if(b.dataset.tab==='scheme')drawGrid();
+    if(b.dataset.tab==='sim')drawChart();
+  });
+});
+function switchTab(name){
+  const b=$('.tabs button[data-tab="'+name+'"]');
+  if(b)b.click();
+}
+
+// ---------------------------------------------------------------- генератор
+const PRESETS=[
+  {label:'Стартовый УЭУ 9×9',patch:{size:9,mode:'normal',goal:'power',fuel:'ueu',autoControl:false,targetHeat:0.55,starts:180}},
+  {label:'Мощный МОКС 15×15',patch:{size:15,mode:'normal',goal:'power',fuel:'mox',autoControl:false,targetHeat:0.65,starts:260}},
+  {label:'Облучатель с источниками',patch:{size:9,mode:'normal',goal:'irradiation',fuel:'les',targetHeat:0.5,starts:180}},
+  {label:'Отработка топлива',patch:{size:11,mode:'normal',goal:'burnup',fuel:'uzh',targetHeat:0.55,starts:200}},
+  {label:'Автостабильный ReaSim',patch:{size:13,mode:'reasim',goal:'stability',fuel:'mep',autoControl:true,ports:true,targetHeat:0.7,starts:220}},
+  {label:'Реасим: мощность',patch:{size:13,mode:'reasim',goal:'power',fuel:'mox',autoControl:false,ports:true,boilerDensity:'dense',targetHeat:0.7,starts:240}},
+];
+function buildPresets(){
+  const host=$('#presets');
+  PRESETS.forEach(p=>{
+    const b=document.createElement('button');
+    b.className='btn sm';b.textContent=p.label;
+    b.addEventListener('click',()=>applyPatch(p.patch));
+    host.appendChild(b);
+  });
+}
+function applyPatch(patch){
+  if(patch.size!==undefined){$('#g-size').value=patch.size;$('#g-size-v').textContent=patch.size+'×'+patch.size;}
+  if(patch.mode!==undefined)$('#g-mode').value=patch.mode;
+  if(patch.goal!==undefined)$('#g-goal').value=patch.goal;
+  if(patch.fuel!==undefined)$('#g-fuel').value=patch.fuel;
+  if(patch.targetHeat!==undefined){$('#g-heat').value=patch.targetHeat;$('#g-heat-v').textContent=Math.round(patch.targetHeat*100)+'%';}
+  if(patch.autoControl!==undefined)$('#g-auto').checked=patch.autoControl;
+  if(patch.ports!==undefined)$('#g-ports').checked=patch.ports;
+  if(patch.boilerDensity!==undefined)$('#g-boilers').value=patch.boilerDensity;
+  if(patch.starts!==undefined){$('#g-starts').value=patch.starts;$('#g-starts-v').textContent=patch.starts;}
+}
+function logLine(cls,msg){
+  const el=$('#gen-log');
+  const div=document.createElement('div');
+  if(cls)div.className=cls;
+  div.textContent=msg;
+  el.appendChild(div);
+  while(el.children.length>120)el.removeChild(el.firstChild);
+  el.scrollTop=el.scrollHeight;
+}
+const fmtPower=v=>{
+  if(!Number.isFinite(v))return '—';
+  if(v>=1e9)return (v/1e9).toFixed(2)+' млрд';
+  if(v>=1e6)return (v/1e6).toFixed(2)+' млн';
+  if(v>=1e3)return (v/1e3).toFixed(1)+'к';
+  return v.toFixed(0);
+};
+const fmtNum2=v=>{
+  if(!Number.isFinite(v))return '—';
+  if(Math.abs(v)>=1000)return v.toFixed(0);
+  if(Math.abs(v)>=10)return v.toFixed(1);
+  return v.toFixed(2);
+};
+
+let genStopped=false;
+async function doGenerate(){
+  genStopped=false;
+  const config={
+    size:+$('#g-size').value,mode:$('#g-mode').value,goal:$('#g-goal').value,fuel:$('#g-fuel').value,
+    requirements:[],targetHeat:+$('#g-heat').value,autoControl:$('#g-auto').checked,
+    controlCount:null,reflectorBorder:$('#g-border').checked,maxReflectors:null,maxAbsorbers:null,maxModerators:null,
+    boilerDensity:$('#g-boilers').value,ports:$('#g-ports').checked,startupSource:$('#g-src').checked,
+    seed:+$('#g-seed').value||1,starts:+$('#g-starts').value,
+    prune:$('#g-prune').checked,verify:$('#g-verify').checked,ticks:180,finalTicks:360,
+    timeCapSec:+$('#g-timecap').value
+  };
+  $('#btn-generate').disabled=true;$('#btn-stop').disabled=false;
+  $('#gen-log').innerHTML='';$('#gen-bar').style.width='0%';
+  $('#gen-result').classList.add('hidden');
+  logLine('','Запуск генерации: '+config.size+'×'+config.size+', топливо '+$('#g-fuel').selectedOptions[0].textContent+
+    ', режим '+(config.mode==='reasim'?'ReaSim':'обычный')+', первая волна '+config.starts+' шаблонов (потом весь банк), лимит '+config.timeCapSec+' с');
+  const t0=Date.now();
+  try{
+    const res=await rpc('generate',{config},p=>{
+      if(p.elapsedMs!==undefined)$('#gen-time').textContent=(p.elapsedMs/1000).toFixed(1)+' с';
+      if(p.msg)logLine('',p.msg);
+      if(p.phase==='anneal'&&p.start!=null&&p.total){
+        const inner=p.iter!=null&&p.iters?p.iter/p.iters:0;
+        const pct=Math.min(55,(p.start+inner)/p.total*55);
+        $('#gen-bar').style.width=pct.toFixed(1)+'%';
+        $('#gen-phase').textContent=(p.msg||'Перебор шаблонов')+
+          ' · лучший счёт '+(p.best>-1e17?fmtNum2(p.best):'—');
+      }else if(p.phase==='verify'&&p.iter!=null&&p.total){
+        const pct=55+Math.min(20,p.iter/p.total*20);
+        $('#gen-bar').style.width=pct.toFixed(1)+'%';
+        $('#gen-phase').textContent=p.msg||'Финалисты';
+      }else if(p.phase==='polish'){
+        const pct=75+Math.min(23,(p.elapsedMs||0)/(config.timeCapSec*1000)*23);
+        $('#gen-bar').style.width=Math.min(98,pct).toFixed(1)+'%';
+        $('#gen-phase').textContent=p.msg||'Доводка';
+      }else if(p.phase==='seed'&&p.start!=null&&p.total){
+        $('#gen-bar').style.width=(p.start/p.total*33).toFixed(1)+'%';
+        $('#gen-phase').textContent=p.msg||'Шаблоны';
+      }else if(p.msg){
+        $('#gen-phase').textContent=p.msg;
+      }
+    });
+    const R=res.result;
+    $('#gen-bar').style.width='100%';
+    $('#gen-phase').textContent='Готово за '+((Date.now()-t0)/1000).toFixed(1)+' с';
+    logLine('ok','Готово: счёт '+fmtNum2(R.diagnostics.score)+', симуляций '+R.diagnostics.evaluated);
+    showGenResult(R);
+    adoptLayout(R.layout);
+    state.report=R.report;state.diagnostics=R.diagnostics;state.checks=R.verification.checks;
+    state.participation=R.participation;state.prune=R.pruning;state.cellStats=null;
+    state.simSeries=[];
+    simReset();
+    renderReportTab();
+  }catch(e){
+    logLine('err','Ошибка: '+(e&&e.message?e.message:e));
+    $('#gen-phase').textContent=genStopped?'Остановлено':'Ошибка — см. лог';
+  }finally{
+    $('#btn-generate').disabled=false;$('#btn-stop').disabled=true;
+  }
+}
+function showGenResult(R){
+  const d=R.diagnostics,r=R.report;
+  const vd=$('#gen-verdict');
+  {
+    const ov=R.verification.overall;
+    const map={pass:['ok','✔','СХЕМА ПРОВЕРЕНА — все контрольные прогоны пройдены'],
+      warn:['wrn','⚠','СХЕМА РАБОЧАЯ, ЕСТЬ ЗАМЕЧАНИЯ — смотрите проверки ниже'],
+      fail:['bad','✘','РАБОЧАЯ СХЕМА НЕ НАЙДЕНА — провалены проверки, помеченные ✘']};
+    const m=map[ov]||map.warn;
+    vd.style.display='flex';
+    vd.className='verdict '+m[0];
+    vd.innerHTML='<span class="vic">'+m[1]+'</span><span>'+esc(m[2])+'</span>';
+  }
+  const sum=[];
+  sum.push('Схема '+R.layout.w+'×'+R.layout.h+': '+d.counts.rods+' ТВЭЛ, '+d.counts.controls+' стержней СУЗ, '+d.counts.boilers+' котлов');
+  sum.push('Мощность: '+fmtPower(r.powerPerTick)+' пар-экв/тик · пар: '+fmtPower(r.steamPerTick)+' мВ/тик ('+r.steamType+')');
+  if(d.calibration&&d.calibration.level!=null)
+    sum.push('Калибровка СУЗ: уровень '+(d.calibration.level*100).toFixed(0)+'% (погружение '+(100-d.calibration.level*100).toFixed(0)+'%)'+
+      (d.calibration.autoTarget?(', авто-цель '+Math.round(d.calibration.autoTarget)+'°C'):'')+' — выставьте стержни перед пуском');
+  else sum.push('Калибровка СУЗ: стержней нет — схему держит сама решётка');
+  const hasSrc=d.fuelMix.some(f=>['po210be','ra226be','pu238be'].includes(f.fuelId));
+  sum.push(hasSrc
+    ?'Пуск: источник уже в схеме — реактор выходит на режим сам (холодный пуск; мощность честная для самостоятельного розжига)'
+    :'Пуск: вставьте источник нейтронов на ~1 секунду в любой канал ТВЭЛ и выньте — симуляция считала именно такой импульсный пуск');
+  sum.push('Шаблон-победитель: '+(d.template||'—'));
+  sum.push('Просмотрено шаблонов: '+(R.stats.searched??R.stats.poolTotal??'—')+' из банка '+(R.stats.poolTotal??'—')+
+    ' · финалистов: '+(R.stats.finalists??'—')+' · доводка: '+(R.stats.polishIters||0)+' проб'+
+    (R.stats.polishAccepted?' (принято '+(R.stats.polishAccepted)+')':'')+' · симуляций: '+d.evaluated);
+  sum.push(R.layout.mode==='reasim'
+    ?'Контур ReaSim: порты снаружи у отражателей ('+r.inlets+' вода + '+r.outlets+' пар) · отражателей '+d.counts.reflectors
+    :'Отражателей: '+d.counts.reflectors+', замедлителей: '+d.counts.moderators+' (все — между ТВЭЛ)');
+  sum.push('Максимум температуры: '+r.maxCore.toFixed(0)+'°C · keff '+r.keff.toFixed(2)+' · расплавлений: '+r.molten);
+  sum.push('Утечка: '+r.radPerTick.toFixed(1)+' рад/тик · вырезано лишнего: '+R.stats.pruned+' компонент');
+  $('#gen-summary').innerHTML=sum.map(s=>'<li>'+esc(s)+'</li>').join('');
+  const cm={pass:['✔','ok'],warn:['⚠','warn'],fail:['✘','err'],skip:['−','mut']};
+  $('#gen-checks').innerHTML=R.verification.checks.map(c=>{
+    const m=cm[c.status]||cm.skip;
+    return '<div class="chkrow"><span class="st '+m[1]+'">'+m[0]+'</span><span class="lb">'+esc(c.label)+
+      (c.value?' — <span class="mono">'+esc(c.value)+'</span>':'')+(c.detail?'<span class="dt">'+esc(c.detail)+'</span>':'')+'</span></div>';
+  }).join('');
+  const cal=d.calibration;
+  if(cal&&cal.steps&&cal.steps.length){
+    let h='<h3 style="margin:14px 0 8px">Кривая калибровки СУЗ</h3><div class="scrollx"><table class="t"><tr><th>Уровень</th><th class="num">Пик, °C</th><th class="num">Мощность</th><th>Цепь</th></tr>';
+    for(const s of cal.steps){
+      h+='<tr><td class="mono">'+(s.level*100).toFixed(0)+'%</td><td class="num">'+s.peak.toFixed(0)+'</td><td class="num">'+fmtPower(s.power)+'</td><td class="'+(s.alive?'ok':'err')+'">'+(s.alive?'живая':'мёртвая')+'</td></tr>';
+    }
+    h+='</table></div><p class="note" style="margin-top:6px">'+esc(cal.note||'')+'</p>';
+    $('#gen-calib').innerHTML=h;
+  }else $('#gen-calib').innerHTML='';
+  $('#gen-notes').innerHTML='<h3 style="margin:14px 0 8px">Журнал синтеза</h3><ul class="clean">'+
+    (d.notes||[]).map(n=>'<li>'+esc(n)+'</li>').join('')+'</ul>';
+  if(R.stats&&R.stats.candidates&&R.stats.candidates.length){
+    let h='<h3 style="margin:14px 0 8px">Топ шаблонов перебора</h3><div class="scrollx"><table class="t"><tr><th>#</th><th>Структура</th><th class="num">Счёт</th><th class="num">Мощность</th><th class="num">keff</th><th>Стоп-тест</th></tr>';
+    for(const c of R.stats.candidates){
+      h+='<tr'+(c.winner?' style="color:var(--amber2)"':'')+'><td class="mono">'+c.rank+'</td><td>'+esc(c.desc)+
+        '</td><td class="num">'+fmtNum2(c.score)+'</td><td class="num">'+fmtPower(c.power)+
+        '</td><td class="num">'+fmtNum2(c.keff)+'</td><td class="'+(c.stop==='pass'?'ok':(c.stop==='fail'?'err':'mut'))+'">'+
+        (c.stop==='pass'?'гасится':(c.stop==='fail'?'не гасится':'—'))+'</td></tr>';
+    }
+    h+='</table></div><p class="note" style="margin-top:6px">Мощность и keff финалистов — после калибровки; остальные — предварительная оценка на коротком прогоне.</p>';
+    $('#gen-top').innerHTML=h;
+  }else $('#gen-top').innerHTML='';
+  $('#gen-result').classList.remove('hidden');
+}
+$('#btn-generate').addEventListener('click',doGenerate);
+$('#btn-stop').addEventListener('click',()=>{
+  genStopped=true;
+  killWorker();
+  logLine('err','Генерация остановлена пользователем');
+  $('#gen-phase').textContent='Остановлено';
+  $('#btn-generate').disabled=false;$('#btn-stop').disabled=true;
+});
+$('#btn-toscheme').addEventListener('click',()=>{switchTab('sim');});
+
+// ---------------------------------------------------------------- схема
+function updateSchemeHeader(){
+  $('#scheme-size').textContent='· '+state.layout.w+'×'+state.layout.h+' · '+
+    (state.layout.mode==='reasim'?'ReaSim':'обычный')+' · сепаратор над зоной';
+}
+function cellColor(i){
+  const c=state.layout.cells[i];
+  const hm=state.heatmap;
+  const st=state.cellStats&&state.cellStats[i];
+  if(hm==='blocks'||!st)return KIND_COLOR[c.k]||'#27272a';
+  if(hm==='flux'){
+    const v=Math.log10(1+Math.max(0,(st.sIn||0)+(st.fIn||0)+(st.out||0)));
+    return ramp(v,[[0,'#1c1917'],[1.5,'#78350f'],[3,'#f59e0b'],[4,'#fde68a']]);
+  }
+  if(hm==='heat')return ramp(st.hc||20,[[20,'#1c1917'],[300,'#7f1d1d'],[900,'#dc2626'],[1500,'#f59e0b'],[2500,'#fde047']]);
+  if(hm==='burnup')return ramp(st.burn||0,[[0,'#1c1917'],[0.3,'#14532d'],[0.7,'#16a34a'],[1,'#bbf7d0']]);
+  if(hm==='xenon')return ramp(st.xen||0,[[0,'#1c1917'],[30,'#701a75'],[70,'#c026d3'],[100,'#f5d0fe']]);
+  return KIND_COLOR[c.k]||'#27272a';
+}
+function hex2rgb(h){return [parseInt(h.slice(1,3),16),parseInt(h.slice(3,5),16),parseInt(h.slice(5,7),16)];}
+function ramp(v,stops){
+  const x=Math.max(stops[0][0],Math.min(stops[stops.length-1][0],v));
+  for(let i=1;i<stops.length;i++){
+    if(x<=stops[i][0]){
+      const[v0,c0]=stops[i-1],[v1,c1]=stops[i];
+      const t=(x-v0)/((v1-v0)||1);
+      const a=hex2rgb(c0),b=hex2rgb(c1);
+      return 'rgb('+Math.round(a[0]+(b[0]-a[0])*t)+','+Math.round(a[1]+(b[1]-a[1])*t)+','+Math.round(a[2]+(b[2]-a[2])*t)+')';
+    }
+  }
+  return stops[stops.length-1][1];
+}
+let CELL_SIZE=44;
+const GRID_PAD=1;
+function drawGrid(){
+  const cv=$('#grid'),n=state.layout.w;
+  const ports=state.layout.ports||[];
+  const wrap=cv.parentElement;
+  const maxW=Math.min(wrap.clientWidth||720,780);
+  const tot=n+2*GRID_PAD;
+  CELL_SIZE=Math.max(20,Math.min(52,Math.floor(maxW/tot)));
+  cv.width=tot*CELL_SIZE;cv.height=tot*CELL_SIZE;
+  cv.style.width=cv.width+'px';cv.style.height=cv.height+'px';
+  const ctx=cv.getContext('2d');
+  ctx.clearRect(0,0,cv.width,cv.height);
+  ctx.fillStyle='#0a0a0c';
+  ctx.fillRect(0,0,cv.width,cv.height);
+  ctx.fillStyle='#141416';
+  ctx.fillRect(GRID_PAD*CELL_SIZE,GRID_PAD*CELL_SIZE,n*CELL_SIZE,n*CELL_SIZE);
+  const px0=GRID_PAD*CELL_SIZE;
+  for(let z=0;z<n;z++)for(let x=0;x<n;x++){
+    const i=z*n+x,c=state.layout.cells[i];
+    const px=px0+x*CELL_SIZE,pz=px0+z*CELL_SIZE;
+    ctx.fillStyle=cellColor(i);
+    ctx.fillRect(px,pz,CELL_SIZE-1,CELL_SIZE-1);
+    if(state.heatmap==='blocks'){
+      ctx.fillStyle='rgba(0,0,0,.55)';
+      ctx.font='bold '+(CELL_SIZE>=40?12:9)+'px ui-monospace,monospace';
+      ctx.textAlign='center';ctx.textBaseline='middle';
+      const code=KIND_CODE[c.k]||'';
+      if(code)ctx.fillText(code,px+(CELL_SIZE-1)/2,pz+(CELL_SIZE-1)/2-(isRodKind(c.k)?5:0));
+      if(isRodKind(c.k)&&CELL_SIZE>=40){
+        ctx.font='8px ui-monospace,monospace';
+        ctx.fillText(fuelShort(c.f),px+(CELL_SIZE-1)/2,pz+(CELL_SIZE-1)/2+8);
+      }
+      if(isControlKind(c.k)&&CELL_SIZE>=34){
+        ctx.fillStyle=c.l<0.35?'#fecaca':(c.l<0.7?'#fde68a':'#d1fae5');
+        ctx.font='9px ui-monospace,monospace';
+        ctx.fillText((c.l*100).toFixed(0)+'%',px+(CELL_SIZE-1)/2,pz+(CELL_SIZE-1)/2+8);
+      }
+      if(state.cellStats&&state.cellStats[i]){
+        const st=state.cellStats[i];
+        if(st.molten){ctx.strokeStyle='#ef4444';ctx.lineWidth=2.5;ctx.strokeRect(px+2,pz+2,CELL_SIZE-5,CELL_SIZE-5);}
+        else if(st.failed){ctx.strokeStyle='rgba(239,68,68,.6)';ctx.lineWidth=1.5;ctx.strokeRect(px+2,pz+2,CELL_SIZE-5,CELL_SIZE-5);}
+      }
+    }
+  }
+  if(state.heatmap==='blocks'){
+    for(let i=0;i<n*n;i++){
+      const c=state.layout.cells[i];
+      if(!isRodKind(c.k))continue;
+      const f=FUEL_BY_ID[c.f];
+      if(!f||!f.source)continue;
+      const x=i%n,z=(i/n)|0;
+      ctx.strokeStyle='#a3e635';
+      ctx.lineWidth=2.5;
+      ctx.strokeRect(px0+x*CELL_SIZE+1.5,px0+z*CELL_SIZE+1.5,CELL_SIZE-4,CELL_SIZE-4);
+      break;
+    }
+  }
+  for(const p of ports){
+    const gx=p.x+GRID_PAD,gz=p.z+GRID_PAD;
+    if(gx<0||gz<0||gx>=tot||gz>=tot)continue;
+    const px=gx*CELL_SIZE,pz=gz*CELL_SIZE;
+    ctx.fillStyle=KIND_COLOR[p.k]||'#3f3f46';
+    ctx.fillRect(px,pz,CELL_SIZE-1,CELL_SIZE-1);
+    ctx.strokeStyle='rgba(255,255,255,.55)';
+    ctx.lineWidth=1.5;
+    ctx.strokeRect(px+1,pz+1,CELL_SIZE-3,CELL_SIZE-3);
+    ctx.fillStyle='rgba(0,0,0,.6)';
+    ctx.font='bold '+(CELL_SIZE>=40?11:8)+'px ui-monospace,monospace';
+    ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(KIND_CODE[p.k]||'',px+(CELL_SIZE-1)/2,pz+(CELL_SIZE-1)/2);
+  }
+  ctx.strokeStyle='rgba(245,158,11,.5)';
+  ctx.lineWidth=1.5;
+  ctx.strokeRect(px0+.75,px0+.75,n*CELL_SIZE-1.5,n*CELL_SIZE-1.5);
+  ctx.strokeStyle='rgba(255,255,255,.06)';
+  ctx.lineWidth=1;
+  ctx.strokeRect(.5,.5,cv.width-1,cv.height-1);
+}
+function isRodKind(k){return k==='rod'||k==='rod_mod'||k==='rod_reasim'||k==='rod_reasim_mod';}
+function isControlKind(k){return k.startsWith('control');}
+// подсказка
+const tip=$('#tip');
+$('#grid').addEventListener('mousemove',e=>{
+  const r=$('#grid').getBoundingClientRect();
+  const x=Math.floor((e.clientX-r.left)/CELL_SIZE)-GRID_PAD,z=Math.floor((e.clientY-r.top)/CELL_SIZE)-GRID_PAD;
+  if(x<0||z<0||x>=state.layout.w||z>=state.layout.h){
+    const p=(state.layout.ports||[]).find(q=>q.x===x&&q.z===z);
+    if(p){
+      tip.innerHTML='<b>'+esc(KIND_LABEL[p.k]||p.k)+'</b> — снаружи зоны ('+x+', '+z+')<br>подключается к колонне РБМК снаружи, вплотную к отражателю';
+      tip.style.display='block';
+      tip.style.left=Math.min(window.innerWidth-260,e.clientX+14)+'px';
+      tip.style.top=(e.clientY+14)+'px';
+    }else tip.style.display='none';
+    return;
+  }
+  const i=z*state.layout.w+x,c=state.layout.cells[i];
+  const st=state.cellStats&&state.cellStats[i];
+  let h='<b>'+esc(KIND_LABEL[c.k]||c.k)+'</b> ('+x+', '+z+')';
+  if(isRodKind(c.k))h+='<br>топливо: '+esc((FUEL_BY_ID[c.f]||{}).label||c.f);
+  if(isControlKind(c.k))h+='<br>уровень: '+(c.l*100).toFixed(0)+'% (погружение '+(100-c.l*100).toFixed(0)+'%)';
+  if(st){
+    h+='<br>сердечник: '+fmtNum2(st.hc)+'°C · корпус: '+fmtNum2(st.hh)+'°C';
+    h+='<br>поток in: '+fmtNum2((st.sIn||0)+(st.fIn||0))+' · out: '+fmtNum2(st.out||0);
+    if(isRodKind(c.k))h+='<br>ксенон: '+(st.xen||0).toFixed(1)+' · выгорание: '+((st.burn||0)*100).toFixed(1)+'%';
+    if(st.molten)h+='<br><b style="color:#f87171">РАСПЛАВЛЕН</b>';
+    if(st.failed)h+='<br><b style="color:#f87171">КОЛОННА РАЗРУШЕНА</b>';
+  }
+  tip.innerHTML=h;
+  tip.style.display='block';
+  tip.style.left=Math.min(window.innerWidth-260,e.clientX+14)+'px';
+  tip.style.top=(e.clientY+14)+'px';
+});
+$('#grid').addEventListener('mouseleave',()=>{tip.style.display='none';});
+// рисование
+let painting=0;
+function paintAt(e,erase){
+  const r=$('#grid').getBoundingClientRect();
+  const x=Math.floor((e.clientX-r.left)/CELL_SIZE)-GRID_PAD,z=Math.floor((e.clientY-r.top)/CELL_SIZE)-GRID_PAD;
+  if(x<0||z<0||x>=state.layout.w||z>=state.layout.h)return;
+  const i=z*state.layout.w+x;
+  const kind=erase?'blank':state.tool.kind;
+  state.layout.cells[i]={k:kind,
+    f:isRodKind(kind)?state.tool.fuel:'ueu',
+    l:isControlKind(kind)?state.tool.level:1};
+  state.cellStats=null;
+  drawGrid();
+}
+$('#grid').addEventListener('mousedown',e=>{
+  e.preventDefault();
+  painting=e.button===2?2:1;
+  paintAt(e,painting===2);
+});
+$('#grid').addEventListener('contextmenu',e=>e.preventDefault());
+window.addEventListener('mouseup',()=>{painting=0;});
+$('#grid').addEventListener('mousemove',e=>{
+  if(painting)paintAt(e,painting===2);
+});
+// палитра
+let KIND_META=[];
+function buildPalette(){
+  const host=$('#palette');
+  const kinds=KIND_META.filter(k=>['rod','rod_mod','rod_reasim','control','control_mod','control_auto','control_reasim','blank','boiler','reflector','absorber','moderator','outgasser','storage','cooler','heater','steam_inlet','steam_outlet','console'].includes(k.id));
+  kinds.forEach(k=>{
+    const b=document.createElement('button');
+    b.innerHTML='<i style="background:'+k.color+'"></i>'+esc(k.label);
+    b.dataset.kind=k.id;
+    b.addEventListener('click',()=>{
+      state.tool.kind=k.id;
+      $$('#palette button').forEach(x=>x.classList.toggle('on',x===b));
+    });
+    if(k.id===state.tool.kind)b.classList.add('on');
+    host.appendChild(b);
+  });
+  const lg=$('#legend'),lg2=$('#legend2');
+  const items=KIND_META.filter(k=>k.code);
+  const html=items.map(k=>'<span><i style="background:'+k.color+'"></i>'+esc(k.label)+'</span>').join('');
+  const extra='<span><i style="background:#27272a;outline:2px solid #a3e635;outline-offset:-2px"></i>ТВЭЛ-источник (розжиг)</span>';
+  lg.innerHTML=html+extra;lg2.innerHTML=html+extra;
+}
+// элементы управления схемой
+$('#hm-mode').addEventListener('change',e=>{state.heatmap=e.target.value;drawGrid();});
+$('#scheme-resize').addEventListener('change',e=>{
+  const n=+e.target.value;
+  const next={v:2,w:n,h:n,mode:state.layout.mode,autoTarget:state.layout.autoTarget,cells:makeCells(n),ports:[]};
+  for(let z=0;z<Math.min(n,state.layout.h);z++)
+    for(let x=0;x<Math.min(n,state.layout.w);x++)
+      next.cells[z*n+x]=Object.assign({},state.layout.cells[z*state.layout.w+x]);
+  state.layout=next;state.cellStats=null;
+  drawGrid();updateSchemeHeader();
+});
+$('#scheme-mode').addEventListener('change',e=>{
+  const map={rod:'rod_reasim',rod_mod:'rod_reasim_mod',control:'control_reasim',control_auto:'control_reasim_auto'};
+  const unmap={rod_reasim:'rod',rod_reasim_mod:'rod_mod',control_reasim:'control',control_reasim_auto:'control_auto'};
+  const to=e.target.value==='reasim'?map:unmap;
+  state.layout.mode=e.target.value;
+  state.layout.cells.forEach(c=>{c.k=to[c.k]||c.k;});
+  state.cellStats=null;
+  drawGrid();
+});
+// импорт-экспорт
+$('#btn-export').addEventListener('click',()=>{
+  const data=JSON.stringify(state.layout,null,1);
+  const blob=new Blob([data],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='rbmk-scheme-'+state.layout.w+'x'+state.layout.h+'-'+Date.now()+'.json';
+  document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href),4000);
+});
+$('#btn-import').addEventListener('click',()=>$('#file-in').click());
+$('#file-in').addEventListener('change',async e=>{
+  const f=e.target.files&&e.target.files[0];
+  if(!f)return;
+  try{
+    const j=JSON.parse(await f.text());
+    if(!j||!Array.isArray(j.cells)||!j.w)throw new Error('это не схема РБМК');
+    adoptLayout(j);
+    simReset();
+    logLine('ok','Схема загружена из файла: '+f.name);
+  }catch(err){
+    alert('Не удалось прочитать схему: '+(err.message||err));
+  }
+  e.target.value='';
+});
+$('#btn-copy').addEventListener('click',()=>{
+  const data=JSON.stringify(state.layout);
+  const w=window.open('','_blank');
+  if(!w){alert('Браузер заблокировал окно — используйте «Экспорт JSON»');return;}
+  w.document.write('<!doctype html><meta charset="utf-8"><title>JSON схемы РБМК</title><pre style="white-space:pre-wrap;word-break:break-all;font:12px monospace">'+esc(data)+'</pre>');
+  w.document.close();
+});
+$('#btn-clear').addEventListener('click',()=>{
+  state.layout.cells=makeCells(state.layout.w);
+  state.cellStats=null;state.report=null;
+  drawGrid();
+});
+
+// ---------------------------------------------------------------- симуляция
+let simTicking=false;
+async function simReset(){
+  try{
+    await rpc('simLoad',{layout:compactLayout()});
+    state.simSeries=[];
+    updateSimMetrics({tick:0,power:0,keff:0,outFlux:0,steam:0,maxCore:20,maxHull:20,rad:0,molten:0,failed:0});
+    drawChart();
+  }catch(e){/* воркер мог быть убит */}
+}
+async function simLoop(){
+  if(!simTicking)return;
+  try{
+    const r=await rpc('simRun',{ticks:state.speed});
+    state.cellStats=r.cellStats;
+    state.simSeries.push({t:r.tick,power:r.power,maxCore:r.maxCore,keff:r.keff});
+    if(state.simSeries.length>900)state.simSeries.splice(0,state.simSeries.length-900);
+    updateSimMetrics(r);
+    drawChart();
+    if(state.layout.w&&painting===0)drawGrid();
+  }catch(e){
+    simTicking=false;$('#btn-play').textContent='▶ Пуск';
+    return;
+  }
+  if(simTicking)setTimeout(simLoop,0);
+}
+function updateSimMetrics(r){
+  const items=[
+    ['Тик',r.tick],
+    ['Мощность',fmtPower(r.power)+' пар-экв/тик'],
+    ['keff',fmtNum2(r.keff)],
+    ['Макс. сердечник',fmtNum2(r.maxCore)+'°C'],
+    ['Макс. корпус',fmtNum2(r.maxHull)+'°C'],
+    ['Пар',fmtPower(r.steam)+' мВ/тик'],
+    ['Утечка',fmtNum2(r.rad)+' рад/тик'],
+    ['Расплавлено',r.molten],
+    ['Разрушено',r.failed],
+  ];
+  $('#sim-metrics').innerHTML=items.map(it=>'<div class="metric"><div class="v">'+esc(String(it[1]))+'</div><div class="l">'+it[0]+'</div></div>').join('');
+}
+function drawChart(){
+  const cv=$('#chart');
+  const W=cv.width=cv.clientWidth||1160,H=cv.height=240;
+  const ctx=cv.getContext('2d');
+  ctx.clearRect(0,0,W,H);
+  const s=state.simSeries;
+  ctx.strokeStyle='#27272a';
+  for(let i=1;i<4;i++){ctx.beginPath();ctx.moveTo(0,H*i/4);ctx.lineTo(W,H*i/4);ctx.stroke();}
+  if(!s.length){
+    ctx.fillStyle='#52525b';ctx.font='12px system-ui';
+    ctx.textAlign='center';
+    ctx.fillText('нет данных — нажмите «Пуск» или «20 тиков»',W/2,H/2);
+    return;
+  }
+  const maxP=Math.max(1,...s.map(p=>p.power));
+  const maxT=Math.max(100,...s.map(p=>p.maxCore));
+  const t0=s[0].t,t1=s[s.length-1].t;
+  const X=t=>W*((t-t0)/Math.max(1,t1-t0));
+  const Yp=v=>H-4-(v/maxP)*(H-12);
+  const Yt=v=>H-4-(v/maxT)*(H-12);
+  ctx.strokeStyle='#ef4444';ctx.lineWidth=1.4;ctx.beginPath();
+  s.forEach((p,i)=>{const x=X(p.t),y=Yt(p.maxCore);i?ctx.lineTo(x,y):ctx.moveTo(x,y);});
+  ctx.stroke();
+  ctx.strokeStyle='#f59e0b';ctx.lineWidth=1.6;ctx.beginPath();
+  s.forEach((p,i)=>{const x=X(p.t),y=Yp(p.power);i?ctx.lineTo(x,y):ctx.moveTo(x,y);});
+  ctx.stroke();
+  ctx.fillStyle='#71717a';ctx.font='10px ui-monospace,monospace';ctx.textAlign='left';
+  ctx.fillText('P max '+fmtPower(maxP),6,12);
+  ctx.fillText('T max '+maxT.toFixed(0)+'°C',6,24);
+  ctx.textAlign='right';
+  ctx.fillText('тик '+t1,W-6,12);
+}
+$('#btn-play').addEventListener('click',()=>{
+  simTicking=!simTicking;
+  $('#btn-play').textContent=simTicking?'⏸ Пауза':'▶ Пуск';
+  if(simTicking)simLoop();
+});
+$('#btn-step').addEventListener('click',async()=>{
+  try{
+    const r=await rpc('simRun',{ticks:20});
+    state.cellStats=r.cellStats;
+    state.simSeries.push({t:r.tick,power:r.power,maxCore:r.maxCore,keff:r.keff});
+    updateSimMetrics(r);drawChart();drawGrid();
+  }catch(e){/* ignore */}
+});
+$('#btn-reset').addEventListener('click',async()=>{
+  simTicking=false;$('#btn-play').textContent='▶ Пуск';
+  await simReset();
+});
+$('#sim-speed').addEventListener('input',e=>{
+  state.speed=+e.target.value;
+  $('#sim-speed-v').textContent=e.target.value;
+});
+
+// ---------------------------------------------------------------- отчёт
+$('#btn-fullsim').addEventListener('click',async()=>{
+  try{
+    $('#report-when').textContent='прогон...';
+    const r=await rpc('simulate',{layout:compactLayout(),ticks:400});
+    state.report=r.report;
+    renderReportTab();
+  }catch(e){
+    $('#report-when').textContent='ошибка: '+(e.message||e);
+  }
+});
+function renderReportTab(){
+  const r=state.report;
+  if(!r){$('#report-when').textContent='отчёта ещё нет';return;}
+  $('#report-when').textContent='тики: '+r.ticks+' · режим: '+(r.mode==='reasim'?'ReaSim':'обычный');
+  let h='<div class="scrollx"><table class="t"><tr><th>Метрика</th><th class="num">Значение</th></tr>';
+  const rows=[
+    ['ТВЭЛ / СУЗ / котлы',r.rods+' / '+r.controls+' / '+r.boilers],
+    ['Мощность',fmtPower(r.powerPerTick)+' пар-экв/тик ('+fmtPower(r.powerPerSec)+'/с)'],
+    ['Пар',fmtPower(r.steamPerTick)+' мВ/тик · '+r.steamType],
+    ['Поток (вход/выход)',fmtNum2(r.inFlux)+' / '+fmtNum2(r.outFlux)],
+    ['keff',fmtNum2(r.keff)],
+    ['Макс. сердечник',fmtNum2(r.maxCore)+'°C · средний '+fmtNum2(r.avgCore)+'°C'],
+    ['Макс. корпус',fmtNum2(r.maxHull)+'°C'],
+    ['Запас до плавления',fmtNum2(r.minMargin)+'°C'],
+    ['Ксенон средний',fmtNum2(r.avgXenon)+' · выгорание '+fmtNum2(r.avgBurnup*100)+'%'],
+    ['Утечка радиации',fmtNum2(r.radPerTick)+' рад/тик ('+fmtNum2(r.radPerTick*20)+' рад/с)'],
+    ['Порты (вода/пар)',r.inlets+' / '+r.outlets],
+    ['Расплавлено / разрушено',r.molten+' / '+r.failed],
+  ];
+  for(const row of rows)h+='<tr><td>'+row[0]+'</td><td class="num">'+esc(String(row[1]))+'</td></tr>';
+  h+='</table></div>';
+  if(r.warnings&&r.warnings.length){
+    h+='<h3 style="margin:14px 0 8px">Предупреждения</h3>';
+    h+=r.warnings.map(w=>'<div class="chkrow"><span class="st '+(w.level==='error'?'err':w.level==='warn'?'warn':'mut')+'">'+(w.level==='error'?'✘':w.level==='warn'?'⚠':'ℹ')+'</span><span class="lb">'+esc(w.text)+'</span></div>').join('');
+  }
+  if(state.checks&&state.checks.length){
+    const cm={pass:['✔','ok'],warn:['⚠','warn'],fail:['✘','err'],skip:['−','mut']};
+    h+='<h3 style="margin:14px 0 8px">Верификация генератора</h3>';
+    h+=state.checks.map(c=>{
+      const m=cm[c.status]||cm.skip;
+      return '<div class="chkrow"><span class="st '+m[1]+'">'+m[0]+'</span><span class="lb">'+esc(c.label)+
+        (c.value?' — <span class="mono">'+esc(c.value)+'</span>':'')+(c.detail?'<span class="dt">'+esc(c.detail)+'</span>':'')+'</span></div>';
+    }).join('');
+  }
+  if(state.participation&&state.participation.length){
+    let cr=0,ac=0,id=0,inr=0;
+    for(const p of state.participation){
+      if(p.cls==='critical')cr++;else if(p.cls==='active')ac++;else if(p.cls==='idle')id++;else inr++;
+    }
+    h+='<h3 style="margin:14px 0 8px">Карта пользы колонн</h3><p class="note">критично: <b>'+cr+'</b> · активно: <b>'+ac+
+      '</b> · мёртвый груз: <b style="color:#f87171">'+id+'</b> · инертно: '+inr+'</p>';
+  }
+  if(state.prune&&state.prune.length){
+    h+='<h3 style="margin:14px 0 8px">Журнал чистки</h3><div class="scrollx"><table class="t"><tr><th>Клетка</th><th>Было</th><th>Причина</th></tr>';
+    for(const e of state.prune.slice(0,40))
+      h+='<tr><td class="mono">('+e.x+','+e.z+')</td><td>'+esc(e.kind)+'</td><td>'+esc(e.reason)+'</td></tr>';
+    h+='</table></div>';
+  }
+  $('#report-body').innerHTML=h;
+}
+
+// ---------------------------------------------------------------- утилиты
+function esc(s){
+  return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// ---------------------------------------------------------------- запуск
+(async function boot(){
+  // слайдеры — живые подписи
+  $('#g-size').addEventListener('input',e=>{$('#g-size-v').textContent=e.target.value+'×'+e.target.value;});
+  $('#g-heat').addEventListener('input',e=>{$('#g-heat-v').textContent=Math.round(e.target.value*100)+'%';});
+  $('#g-starts').addEventListener('input',e=>{$('#g-starts-v').textContent=e.target.value;});
+  $('#p-level').addEventListener('input',e=>{
+    state.tool.level=+e.target.value;
+    $('#p-level-v').textContent=(state.tool.level*100).toFixed(0)+'%';
+  });
+  try{
+    const meta=await rpc('meta');
+    META=meta;
+    KIND_META=meta.kinds;
+    window.KIND_COLOR={};window.KIND_CODE={};window.KIND_LABEL={};
+    meta.kinds.forEach(k=>{KIND_COLOR[k.id]=k.color;KIND_CODE[k.id]=k.code;KIND_LABEL[k.id]=k.label;});
+    meta.fuels.forEach(f=>FUEL_BY_ID[f.id]=f);
+    // выбор топлива: группы по категориям
+    const cats=[...new Set(meta.fuels.map(f=>f.cat))];
+    const sel=$('#g-fuel');
+    for(const cat of cats){
+      const g=document.createElement('optgroup');
+      g.label=cat;
+      for(const f of meta.fuels.filter(x=>x.cat===cat)){
+        const o=document.createElement('option');
+        o.value=f.id;o.textContent=f.label+(f.source?' · источник':'');
+        g.appendChild(o);
+      }
+      sel.appendChild(g);
+    }
+    sel.value='ueu';
+    const pf=$('#p-fuel');
+    for(const cat of cats){
+      const g=document.createElement('optgroup');
+      g.label=cat;
+      for(const f of meta.fuels.filter(x=>x.cat===cat)){
+        const o=document.createElement('option');
+        o.value=f.id;o.textContent=f.label;
+        g.appendChild(o);
+      }
+      pf.appendChild(g);
+    }
+    pf.value='ueu';
+    pf.addEventListener('change',e=>{state.tool.fuel=e.target.value;});
+    buildPresets();
+    buildPalette();
+    $('#scheme-resize').value=String(state.layout.w);
+    drawGrid();
+    updateSchemeHeader();
+    await simReset();
+    logLine('ok','Движок загружен. Жмите «Сгенерировать схему» — или соберите свою на вкладке «Схема».');
+  }catch(e){
+    alert('Не удалось запустить движок: '+(e.message||e)+'\nОткройте файл в современном Chrome/Firefox/Edge.');
+  }
+})();
+window.addEventListener('resize',()=>{drawGrid();drawChart();});
+</script>
+</body>
+</html>
