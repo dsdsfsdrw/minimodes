@@ -13,15 +13,15 @@ import java.util.concurrent.CompletableFuture;
 
 public class EffCopySkin extends Effect {
     private Expression<Player> source;
-    private Expression<Player[]> targets;
-    private Expression<Player[]> viewers;
+    private Expression<Player> targets;
+    private Expression<Player> viewers;
 
     @SuppressWarnings("unchecked")
     @Override
     public boolean init(Expression<?>[] exprs, int matchedPattern, Kleenean isDelayed, ParseResult parseResult) {
         source = (Expression<Player>) exprs[0];
-        targets = (Expression<Player[]>) exprs[1];
-        viewers = matchedPattern > 1 ? (Expression<Player[]>) exprs[2] : null;
+        targets = (Expression<Player>) exprs[1];
+        viewers = matchedPattern > 1 ? (Expression<Player>) exprs[2] : null;
         return true;
     }
 

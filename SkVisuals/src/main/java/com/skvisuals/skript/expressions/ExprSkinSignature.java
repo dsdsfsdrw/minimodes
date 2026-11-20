@@ -7,6 +7,7 @@ import ch.njol.skript.lang.util.SimpleExpression;
 import ch.njol.util.Kleenean;
 import org.bukkit.entity.Player;
 import org.bukkit.event.Event;
+import org.bukkit.profile.ProfileProperty;
 
 import java.util.Optional;
 
@@ -34,7 +35,7 @@ public class ExprSkinSignature extends SimpleExpression<String> {
     protected String[] get(Event event) {
         Player p = player.getSingle(event);
         if (p == null) return new String[0];
-        Optional<com.destroystokyo.paper.profile.ProfileProperty> prop = p.getPlayerProfile().getProperties().stream()
+        Optional<ProfileProperty> prop = p.getPlayerProfile().getProperties().stream()
                 .filter(pr -> "textures".equals(pr.getName()))
                 .findFirst();
         return prop.map(pr -> new String[]{pr.getSignature()}).orElse(new String[0]);

@@ -11,14 +11,14 @@ import org.bukkit.event.Event;
 import java.util.List;
 
 public class EffResetSkin extends Effect {
-    private Expression<Player[]> targets;
-    private Expression<Player[]> viewers;
+    private Expression<Player> targets;
+    private Expression<Player> viewers;
 
     @SuppressWarnings("unchecked")
     @Override
     public boolean init(Expression<?>[] exprs, int matchedPattern, Kleenean isDelayed, ParseResult parseResult) {
-        targets = (Expression<Player[]>) exprs[0];
-        viewers = matchedPattern > 0 ? (Expression<Player[]>) exprs[1] : null;
+        targets = (Expression<Player>) exprs[0];
+        viewers = matchedPattern > 0 ? (Expression<Player>) exprs[1] : null;
         return true;
     }
 

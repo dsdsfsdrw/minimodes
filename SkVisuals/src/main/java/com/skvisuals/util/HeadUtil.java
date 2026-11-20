@@ -1,7 +1,7 @@
 package com.skvisuals.util;
 
-import com.destroystokyo.paper.profile.PlayerProfile;
-import com.destroystokyo.paper.profile.ProfileProperty;
+import org.bukkit.profile.PlayerProfile;
+import org.bukkit.profile.ProfileProperty;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.OfflinePlayer;

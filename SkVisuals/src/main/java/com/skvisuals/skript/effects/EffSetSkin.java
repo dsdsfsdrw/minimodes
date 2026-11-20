@@ -13,20 +13,20 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
 public class EffSetSkin extends Effect {
-    private Expression<Player[]> targets;
+    private Expression<Player> targets;
     private Expression<String> value;
     private Expression<String> kind;
     private Expression<String> signature;
-    private Expression<Player[]> viewers;
+    private Expression<Player> viewers;
 
     @SuppressWarnings("unchecked")
     @Override
     public boolean init(Expression<?>[] exprs, int matchedPattern, Kleenean isDelayed, ParseResult parseResult) {
-        targets = (Expression<Player[]>) exprs[0];
+        targets = (Expression<Player>) exprs[0];
         kind = (Expression<String>) exprs[1];
         value = (Expression<String>) exprs[2];
         signature = matchedPattern > 1 ? (Expression<String>) exprs[3] : null;
-        viewers = matchedPattern > 2 ? (Expression<Player[]>) exprs[3] : null;
+        viewers = matchedPattern > 2 ? (Expression<Player>) exprs[3] : null;
         return true;
     }
 

@@ -24,7 +24,7 @@ public class EffDrawShape extends Effect {
     private Expression<Double> radius, height, pitch, yaw, roll, size;
     private Expression<Integer> points;
     private Expression<Color> color;
-    private Expression<Player[]> players;
+    private Expression<Player> players;
     private Expression<Double> viewRadius;
 
     @SuppressWarnings("unchecked")
@@ -41,7 +41,7 @@ public class EffDrawShape extends Effect {
         roll = (Expression<Double>) exprs[8];
         color = (Expression<Color>) exprs[9];
         size = (Expression<Double>) exprs[10];
-        players = (Expression<Player[]>) exprs[11];
+        players = (Expression<Player>) exprs[11];
         viewRadius = (Expression<Double>) exprs[12];
         return true;
     }

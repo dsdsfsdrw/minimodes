@@ -22,7 +22,7 @@ public class EffSpawnParticle extends Effect {
     private Expression<Location> location;
     private Expression<Double> offsetX, offsetY, offsetZ, speed, size;
     private Expression<Color> color, toColor;
-    private Expression<Player[]> players;
+    private Expression<Player> players;
     private Expression<Double> radius;
 
     @SuppressWarnings("unchecked")
@@ -40,7 +40,7 @@ public class EffSpawnParticle extends Effect {
         toColor = (Expression<Color>) exprs[i++];
         size = (Expression<Double>) exprs[i++];
         i++; // material slot (unused for simple spawns)
-        players = (Expression<Player[]>) exprs[i++];
+        players = (Expression<Player>) exprs[i++];
         radius = (Expression<Double>) exprs[i];
         return true;
     }

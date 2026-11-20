@@ -23,7 +23,7 @@ public class EffDrawLine extends Effect {
     private Expression<Location> from, to;
     private Expression<Double> step, amplitude, frequency, size;
     private Expression<Color> color;
-    private Expression<Player[]> players;
+    private Expression<Player> players;
     private Expression<Double> viewRadius;
 
     @SuppressWarnings("unchecked")
@@ -38,7 +38,7 @@ public class EffDrawLine extends Effect {
         frequency = (Expression<Double>) exprs[5];
         color = (Expression<Color>) exprs[6];
         size = (Expression<Double>) exprs[7];
-        players = (Expression<Player[]>) exprs[8];
+        players = (Expression<Player>) exprs[8];
         viewRadius = (Expression<Double>) exprs[9];
         return true;
     }

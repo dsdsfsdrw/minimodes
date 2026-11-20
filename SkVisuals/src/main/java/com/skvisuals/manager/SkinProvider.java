@@ -4,8 +4,8 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.skvisuals.SkVisuals;
 import com.skvisuals.util.SkinUtil;
-import com.destroystokyo.paper.profile.ProfileProperty;
-import com.destroystokyo.paper.profile.PlayerProfile;
+import org.bukkit.profile.PlayerProfile;
+import org.bukkit.profile.ProfileProperty;
 import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.entity.Player;
@@ -122,7 +122,7 @@ public final class SkinProvider {
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
-        }, httpClient.executor()).exceptionally(ex -> {
+        }).exceptionally(ex -> {
             Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
             log("Failed to fetch texture from " + url + ": " + cause.getMessage());
             return null;
