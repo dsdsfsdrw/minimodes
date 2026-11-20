@@ -44,7 +44,7 @@ public class ExprTextureURL extends SimpleExpression<String> {
         if (o instanceof Player p) return HeadUtil.extractBase64(p);
         if (o instanceof OfflinePlayer p) return HeadUtil.extractBase64(p);
         if (o instanceof ItemStack item) return HeadUtil.extractBase64(item);
-        if (o instanceof ItemType type) return HeadUtil.extractBase64(type.createItemStack(1));
+        if (o instanceof ItemType type) return HeadUtil.extractBase64(type.getItem().clone());
         if (o instanceof Block block) return HeadUtil.extractBase64(block);
         return Optional.empty();
     }

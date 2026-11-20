@@ -33,7 +33,7 @@ public class EffSetTexture extends Effect {
         } else if (target instanceof Block block) {
             HeadUtil.applyTexture(block, tex);
         } else if (target instanceof ItemType type) {
-            ItemStack item = type.createItemStack(1);
+            ItemStack item = type.getItem().clone();
             HeadUtil.applyTexture(item, tex);
         }
     }
