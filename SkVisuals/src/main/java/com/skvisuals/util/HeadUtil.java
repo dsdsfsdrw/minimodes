@@ -10,7 +10,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.inventory.meta.SkullMeta;
-import org.bukkit.profile.PlayerProfile as BukkitPlayerProfile;
+import org.bukkit.Bukkit;
 
 import java.util.Base64;
 import java.util.Optional;
@@ -52,7 +52,7 @@ public final class HeadUtil {
     public static Optional<String> extractBase64(ItemStack item) {
         ItemMeta meta = item.getItemMeta();
         if (meta instanceof SkullMeta skullMeta) {
-            BukkitPlayerProfile profile = skullMeta.getPlayerProfile();
+            org.bukkit.profile.PlayerProfile profile = skullMeta.getPlayerProfile();
             if (profile != null) {
                 ProfileProperty prop = profile.getProperty("textures");
                 if (prop != null) return Optional.of(prop.getValue());
@@ -64,7 +64,7 @@ public final class HeadUtil {
     public static Optional<String> extractBase64(Block block) {
         BlockState state = block.getState();
         if (state instanceof Skull skull) {
-            BukkitPlayerProfile profile = skull.getPlayerProfile();
+            org.bukkit.profile.PlayerProfile profile = skull.getPlayerProfile();
             if (profile != null) {
                 ProfileProperty prop = profile.getProperty("textures");
                 if (prop != null) return Optional.of(prop.getValue());
@@ -74,7 +74,7 @@ public final class HeadUtil {
     }
 
     public static Optional<String> extractBase64(Player player) {
-        BukkitPlayerProfile profile = player.getPlayerProfile();
+        org.bukkit.profile.PlayerProfile profile = player.getPlayerProfile();
         if (profile != null) {
             ProfileProperty prop = profile.getProperty("textures");
             if (prop != null) return Optional.of(prop.getValue());
@@ -83,7 +83,7 @@ public final class HeadUtil {
     }
 
     public static Optional<String> extractBase64(org.bukkit.OfflinePlayer offline) {
-        BukkitPlayerProfile profile = offline.getPlayerProfile();
+        org.bukkit.profile.PlayerProfile profile = offline.getPlayerProfile();
         if (profile != null) {
             ProfileProperty prop = profile.getProperty("textures");
             if (prop != null) return Optional.of(prop.getValue());
