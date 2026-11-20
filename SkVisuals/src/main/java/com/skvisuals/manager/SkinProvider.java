@@ -20,7 +20,6 @@ import java.util.Base64;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.Function;
 
 /**
  * Asynchronous skin texture provider with fallback chain and in-memory caching.
@@ -33,7 +32,6 @@ public final class SkinProvider {
     private final List<String> fallbackApis;
     private final boolean debug;
 
-    // username -> base64 texture (raw JSON Base64 string as expected by ProfileProperty)
     private final ConcurrentHashMap<String, CompletableFuture<String>> pending = new ConcurrentHashMap<>();
 
     public SkinProvider(SkVisuals plugin, CacheManager cache, List<String> fallbackApis, boolean debug) {
@@ -47,10 +45,6 @@ public final class SkinProvider {
                 .build();
     }
 
-    /**
-     * Resolve a texture Base64 for a given username. Returns a raw Base64-encoded JSON textures property.
-     * Result is cached.
-     */
     public CompletableFuture<String> resolveTextureBase64(String username) {
         String cacheKey = "texture:" + username.toLowerCase();
         String cached = cache.get(cacheKey);
@@ -58,17 +52,16 @@ public final class SkinProvider {
             return CompletableFuture.completedFuture(cached);
         }
 
-        return pending.computeIfAbsent(username.toLowerCase(), key -> fetchWithFallbacks(username))
-                .whenCompleteAsync((result, throwable) -> pending.remove(key), Bukkit.getScheduler().isCurrentlyMainThread() ? null : Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {}).getScheduler() == null ? null : null)
-                .thenApplyAsync(result -> {
+        return pending.computeIfAbsent(cacheKey, key -> fetchWithFallbacks(username)
+                .thenApply(result -> {
                     cache.put(cacheKey, result);
                     return result;
-                }, Bukkit.isPrimaryThread() ? java.util.concurrent.CompletableFuture.delayedExecutor(0, java.util.concurrent.TimeUnit.MILLISECONDS) : java.util.concurrent.CompletableFuture.delayedExecutor(0, java.util.concurrent.TimeUnit.MILLISECONDS));
+                })
+                .whenComplete((r, t) -> pending.remove(key)));
     }
 
     private CompletableFuture<String> fetchWithFallbacks(String username) {
-        CompletableFuture<String> mojang = fetchMojang(username);
-        return mojang.handle((result, ex) -> {
+        return fetchMojang(username).handle((result, ex) -> {
             if (result != null) return result;
             if (ex != null && isRateLimited(ex)) {
                 log("Mojang rate-limited for " + username + ", trying fallbacks.");
@@ -76,7 +69,10 @@ public final class SkinProvider {
                 log("Mojang failed for " + username + ": " + ex.getMessage() + ", trying fallbacks.");
             }
             return null;
-        }).thenComposeAsync(ignored -> tryFallbacks(username), java.util.concurrent.CompletableFuture.delayedExecutor(0, java.util.concurrent.TimeUnit.MILLISECONDS));
+        }).thenCompose(res -> {
+            if (res != null) return CompletableFuture.completedFuture(res);
+            return tryFallbacks(username);
+        });
     }
 
     private CompletableFuture<String> tryFallbacks(String username) {
@@ -87,8 +83,7 @@ public final class SkinProvider {
             result = result.handle((r, ex) -> {
                 if (r != null) return r;
                 return null;
-            }).thenComposeAsync(ignored -> current != null ? current : CompletableFuture.failedFuture(new IOException("skipped")),
-                    java.util.concurrent.CompletableFuture.delayedExecutor(0, java.util.concurrent.TimeUnit.MILLISECONDS));
+            }).thenCompose(ignored -> current);
         }
         return result;
     }
@@ -124,10 +119,7 @@ public final class SkinProvider {
                     throw new IOException("No textures property in response from " + url);
                 }
                 return base64;
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw new RuntimeException(e);
-            } catch (IOException e) {
+            } catch (Exception e) {
                 throw new RuntimeException(e);
             }
         }, httpClient.executor()).exceptionally(ex -> {
@@ -150,10 +142,6 @@ public final class SkinProvider {
         return null;
     }
 
-    /**
-     * Apply a raw Base64 texture property to a player's profile.
-     * If forViewers is empty, applies globally; otherwise updates visibility per viewer.
-     */
     public void applySkin(Player target, String base64, String signature, List<Player> forViewers) {
         PlayerProfile profile = Bukkit.createProfile(target.getUniqueId(), target.getName());
         profile.setProperty(new ProfileProperty("textures", base64, signature));
@@ -173,9 +161,6 @@ public final class SkinProvider {
         }
     }
 
-    /**
-     * Reset skin to default configured base64.
-     */
     public void resetSkin(Player target, String defaultBase64, List<Player> forViewers) {
         applySkin(target, defaultBase64, null, forViewers);
     }
