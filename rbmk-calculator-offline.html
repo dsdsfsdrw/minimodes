@@ -567,7 +567,8 @@ const DEF_SET={
   absorberHeatConv:0.05,columnHeatFlow:0.2,
   passiveCooling:2.5,passiveCoolingInner:0.1,
   boilerHeatConsumption:0.1,xenon:true,depletion:true,
-  steamCapNormal:1e6,steamCapReasim:16000,outletRate:2000,coolerPower:10,heaterPower:5,autoTarget:1000
+  steamCapNormal:1e6,steamCapReasim:16000,outletRate:2000,coolerPower:10,heaterPower:5,autoTarget:1000,
+  steamTier:-1
 };
 const TIER_T=[100,300,450,600],TIER_F=[1,10,100,1000];
 
@@ -611,7 +612,7 @@ class Sim{
     if(!this.autoOn)return;
     const L=this.L,S=this.S;
     let globalMax=20;
-    for(let i=0;i<L.k.length;i++)if(isRodK(L.k[i])&&!L.molten[i]&&L.hc[i]>globalMax)globalMax=L.hc[i];
+    for(let i=0;i<L.k.length;i++)if(isRodK(L.k[i])&&!L.molten[i]&&L.hh[i]>globalMax)globalMax=L.hh[i];
     for(let z=0;z<L.h;z++)for(let x=0;x<L.w;x++){
       const i=z*L.w+x;
       if(!isAutoK(L.k[i])||L.failed[i])continue;
@@ -622,14 +623,15 @@ class Sim{
         if(nx<0||nz<0||nx>=L.w||nz>=L.h)continue;
         const j=nz*L.w+nx;
         if(isRodK(L.k[j])&&!L.molten[j]){
-          if(L.hc[j]>hottest)hottest=L.hc[j];
+          if(L.hh[j]>hottest)hottest=L.hh[j];
           found=true;
         }
       }
       const measure=found?hottest:globalMax;
       let err=measure-S.autoTarget;
       if(err>1500)err=1500;if(err<-1500)err=-1500;
-      let nl=L.l[i]-err*0.005;
+      // controlSpeed = 5/1800 ≈ 0.00278
+      let nl=L.l[i]-err*(5/1800);
       L.l[i]=nl<0?0:(nl>1?1:nl);
     }
   }
@@ -698,8 +700,16 @@ class Sim{
           continue;
         }
         if(k===REFLECTOR){
-          const oi=oz*L.w+ox,back=flux*reflEff;
-          L.sIn[oi]+=back*(1-ratio);L.fIn[oi]+=back*ratio;
+          // NTM logic: если отражатель не полностью отражает, продолжаем луч
+          if(reflEff < 1){
+            flux *= reflEff;
+            if(trk===2)refl[ci]+=flux;
+            if(flux < 1e-4) break;
+            continue;
+          }
+          // полное отражение: возвращаем в колонну‑источник и завершаем луч
+          const oi=oz*L.w+ox,back=flux;
+          if(back>1e-12){L.sIn[oi]+=back*(1-ratio);L.fIn[oi]+=back*ratio;}
           if(trk===2)refl[ci]+=back;
           break;
         }
@@ -720,26 +730,27 @@ class Sim{
       if(!isRodK(L.k[i]))continue;
       if(L.molten[i]||L.failed[i]){L.out[i]=0;continue;}
       const f=FUELS[L.fuel[i]];
-      let eff;
-      if(f.nIn==='SLOW')eff=L.sIn[i]+L.fIn[i]*0.5;
-      else if(f.nIn==='FAST')eff=L.fIn[i]+L.sIn[i]*0.3;
-      else eff=L.sIn[i]+L.fIn[i];
-      const input=eff+(f.selfRate>0?f.selfRate:0)+(f.reactivity>0?f.reactivity:0);
-      const xenGen=input*f.xgen;
-      const xenBurn=(input*input)/(f.xburn>1e-9?f.xburn:1e-9);
+      let fluxIn;
+      if(f.nIn==='SLOW')fluxIn=L.sIn[i]+L.fIn[i]*0.5;
+      else if(f.nIn==='FAST')fluxIn=L.fIn[i]+L.sIn[i]*0.3;
+      else fluxIn=L.sIn[i]+L.fIn[i];
+      const selfPart=(f.selfRate>0?f.selfRate:0)+(f.reactivity>0?f.reactivity:0);
+      const inFlux=fluxIn+selfPart;
       let poison=S.xenon?L.xen[i]/100:0;
       if(poison>1)poison=1;if(poison<0)poison=0;
-      const effective=input*(1-poison);
+      const xenBurn=(inFlux*inFlux)/(f.xburn>1e-9?f.xburn:1e-9);
+      const effective=inFlux*(1-poison);
+      const xenGen=effective*f.xgen;
+      if(S.xenon){
+        let nx=L.xen[i]-xenBurn+xenGen;
+        L.xen[i]=nx<0?0:(nx>100?100:nx);
+      }
       const enrich=S.depletion?depletionCurve(f.dep,1-L.burn[i]):1;
       const outv=burnCurve(f.func,effective,f.yld,f.selfRate,enrich);
       L.out[i]=outv>0?outv:0;
       const heatGen=effective*f.heat;
       L.hc[i]+=heatGen;L.gen[i]=heatGen;
-      if(S.xenon){
-        let nx=L.xen[i]+xenGen-xenBurn-0.02;
-        L.xen[i]=nx<0?0:(nx>100?100:nx);
-      }
-      if(S.depletion)L.burn[i]=Math.min(1,L.burn[i]+input/(f.lifetime>1e-9?f.lifetime:1e-9));
+      if(S.depletion)L.burn[i]=Math.min(1,L.burn[i]+fluxIn/(f.lifetime>1e-9?f.lifetime:1e-9));
     }
   }
   heatTick(){
@@ -761,20 +772,30 @@ class Sim{
       const d=(L.hc[i]-L.hh[i])*f.diffusion;
       L.hc[i]-=d;L.hh[i]+=d;
     }
-    const hb=this.hullBuf;
-    hb.fill(0);
+    // Core → Hull (diffusion)
+    for(let i=0;i<n;i++){
+      if(!isRodK(L.k[i]))continue;
+      const f=FUELS[L.fuel[i]];
+      const d=(L.hc[i]-L.hh[i])*f.diffusion;
+      L.hc[i]-=d;L.hh[i]+=d;
+    }
+    // Hull ↔ Hull sequential exchange (NTM style)
     const flow=Math.min(0.25,S.columnHeatFlow);
     for(let z=0;z<L.h;z++)for(let x=0;x<L.w;x++){
-      const i=z*L.w+x,hi=L.hh[i];
-      let delta=0;
+      const i=z*L.w+x;
+      if(!isRodK(L.k[i]))continue;
+      let hi=L.hh[i];
       for(let d=0;d<4;d++){
         const nx=x+DIRS4[d][0],nz=z+DIRS4[d][1];
         if(nx<0||nz<0||nx>=L.w||nz>=L.h)continue;
-        delta+=(L.hh[nz*L.w+nx]-hi)*flow;
+        const ni=nz*L.w+nx;
+        if(!isRodK(L.k[ni]))continue;
+        const dT=(L.hh[ni]-hi)*flow;
+        L.hh[i]+=dT;
+        L.hh[ni]-=dT;
+        hi=L.hh[i];
       }
-      hb[i]=delta;
     }
-    for(let i=0;i<n;i++)L.hh[i]+=hb[i];
     for(let z=0;z<L.h;z++)for(let x=0;x<L.w;x++){
       const i=z*L.w+x;
       if(L.failed[i])continue;
@@ -795,8 +816,13 @@ class Sim{
     const L=this.L,S=this.S;
     const cap=reasimMode?S.steamCapReasim:S.steamCapNormal;
     if(!reasimMode||inlets)L.wtr[ci]=Math.min(cap,L.wtr[ci]+2000);
-    let tierIdx=-1;
-    for(let i=3;i>=0;i--){if(L.hh[ci]>TIER_T[i]){tierIdx=i;break;}}
+    // steamTier: -1=auto, 0=STEAM,1=HOT,2=SUPER,3=ULTRA
+    let tierIdx=S.steamTier;
+    if(tierIdx<0){
+      for(let i=3;i>=0;i--){if(L.hh[ci]>TIER_T[i]){tierIdx=i;break;}}
+    }else if(L.hh[ci]<=TIER_T[tierIdx]){
+      tierIdx=-1;
+    }
     if(tierIdx>=0&&L.wtr[ci]>0){
       const availHeat=L.hh[ci]-TIER_T[tierIdx];
       let roomWater=((cap-L.st[ci])*TIER_F[tierIdx])/100;
@@ -822,7 +848,7 @@ class Sim{
   failures(){
     const L=this.L;
     for(let i=0;i<L.k.length;i++){
-      if(isRodK(L.k[i])&&!L.molten[i]&&L.hc[i]>=FUELS[L.fuel[i]].melt){L.molten[i]=1;L.out[i]=0;}
+      if(isRodK(L.k[i])&&!L.molten[i]&&L.hh[i]>=FUELS[L.fuel[i]].melt){L.molten[i]=1;L.out[i]=0;}
       if(!L.failed[i]&&L.hh[i]>=1500){L.failed[i]=1;if(isRodK(L.k[i]))L.out[i]=0;}
     }
   }

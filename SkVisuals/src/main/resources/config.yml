@@ -1,0 +1,8 @@
+# SkVisuals configuration
+cache-ttl-minutes: 60
+fallback-apis:
+  - https://api.ashcon.app/mojang/v2/user/%name%
+  - https://api.crafthead.net/profile/%name%
+default-skin-base64: "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvYjY4NjgxOTU5YjY0ZDI5ODJkY2U1ZGIzN2NhMDkxNmQwOTczNzE2N2U2OGI4NDVjMjIyYmY3N2QyNTVhYjRiMyJ9fX0="
+max-particle-points: 500
+debug-mode: false

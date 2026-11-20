@@ -1,0 +1,16 @@
+name: SkVisuals
+version: '1.0.0'
+main: com.skvisuals.SkVisuals
+api-version: '1.21.11'
+depend: [Skript]
+author: KlinchAI
+description: Skript addon - Base64/URL heads, multi-source skins, 3D particles with rotation.
+commands:
+  skvisuals:
+    description: Main command for SkVisuals
+    usage: /skvisuals <reload|clearcache>
+    permission: skvisuals.admin
+permissions:
+  skvisuals.admin:
+    description: Allows using administration commands
+    default: op
