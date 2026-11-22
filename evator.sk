@@ -1,0 +1,1741 @@
+# Версия: 2.3
+# Система механических лифтов с плавным движением, авто-кнопками, редстоун-индикаторами, голограммами и удалением этажей
+# Зависимости: Skript, SkBee, skript-yaml, skript-reflect
+# База данных: /home/container/database/elevators.yml
+
+import:
+    org.bukkit.entity.Display$Billboard as DisplayBillboard
+    net.kyori.adventure.text.minimessage.MiniMessage
+    org.bukkit.util.Transformation
+    org.joml.Vector3f
+
+on load:
+    load yaml "/home/container/database/elevators.yml" as "elevators_db"
+    if yaml value "settings.enabled" from "elevators_db" is not set:
+        set yaml value "settings.enabled" from "elevators_db" to true
+    if yaml value "settings.speed_ticks" from "elevators_db" is not set:
+        set yaml value "settings.speed_ticks" from "elevators_db" to 3
+    if yaml value "settings.max_size" from "elevators_db" is not set:
+        set yaml value "settings.max_size" from "elevators_db" to 11
+    if yaml value "settings.cooldown" from "elevators_db" is not set:
+        set yaml value "settings.cooldown" from "elevators_db" to 3
+    if yaml value "settings.sounds_enabled" from "elevators_db" is not set:
+        set yaml value "settings.sounds_enabled" from "elevators_db" to true
+    if yaml value "settings.particles_enabled" from "elevators_db" is not set:
+        set yaml value "settings.particles_enabled" from "elevators_db" to true
+    if yaml value "settings.protect_blocks" from "elevators_db" is not set:
+        set yaml value "settings.protect_blocks" from "elevators_db" to true
+    if yaml value "settings.jump_sneak_control" from "elevators_db" is not set:
+        set yaml value "settings.jump_sneak_control" from "elevators_db" to true
+    if yaml value "settings.holograms_enabled" from "elevators_db" is not set:
+        set yaml value "settings.holograms_enabled" from "elevators_db" to true
+    if yaml value "settings.button_search_radius" from "elevators_db" is not set:
+        set yaml value "settings.button_search_radius" from "elevators_db" to 25
+    save yaml "elevators_db"
+
+    delete {evator::moving::*}
+    delete {evator::cur_y::*}
+    delete {evator::holo_lift::*}
+    delete {evator::holo_btn::*}
+
+    # Очистка старых голограмм при перезагрузке скрипта
+    loop all worlds:
+        loop all entities in loop-world:
+            if scoreboard tags of loop-entity contains "evator_holo":
+                kill loop-entity
+
+    # Восстановление позиций, голограмм и редстоун-блоков
+    set {_names::*} to yaml list "elevator_names" from "elevators_db"
+    loop {_names::*}:
+        set {_cy} to yaml value "elevators.%loop-value%.current_y" from "elevators_db"
+        if {_cy} is set:
+            set {evator::cur_y::%loop-value%} to {_cy}
+            evatorUpdateLiftHolo(loop-value, "idle", "", 0)
+            evatorRefreshButtons(loop-value)
+
+on unload:
+    loop {evator::cur_y::*}:
+        set yaml value "elevators.%loop-index%.current_y" from "elevators_db" to loop-value
+    loop {evator::holo_lift::*}:
+        kill loop-value
+    loop {evator::holo_btn::*}:
+        kill loop-value
+    delete {evator::holo_lift::*}
+    delete {evator::holo_btn::*}
+    save yaml "elevators_db"
+    unload yaml "elevators_db"
+
+on quit:
+    delete {evator::gui_inv::%uuid of player%}
+    delete {evator::gui_type::%uuid of player%}
+    delete {evator::gui_target::%uuid of player%}
+    delete {evator::click_cd::%uuid of player%}
+
+# ==========================================
+# ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
+# ==========================================
+
+function evatorSound(p: player, sound: string, vol: number = 0.7, pitch: number = 1.0):
+    if yaml value "settings.sounds_enabled" from "elevators_db" is true:
+        play sound {_sound} with volume {_vol} and pitch {_pitch} at {_p} for {_p}
+
+function evatorWorldSound(loc: location, sound: string, vol: number = 0.7, pitch: number = 1.0):
+    if yaml value "settings.sounds_enabled" from "elevators_db" is true:
+        play sound {_sound} with volume {_vol} and pitch {_pitch} at {_loc}
+
+function evatorSetHolo(e: entity, mmText: string, scale: number = 0.65):
+    set {_mm} to MiniMessage.miniMessage()
+    set {_comp} to {_mm}.deserialize({_mmText})
+    {_e}.text({_comp})
+    {_e}.setBillboard(DisplayBillboard.CENTER)
+    {_e}.setShadowed(true)
+    set {_f} to {_scale}.floatValue()
+    set {_t} to {_e}.getTransformation()
+    set {_newScale} to new Vector3f({_f}, {_f}, {_f})
+    set {_newTr} to new Transformation({_t}.getTranslation(), {_t}.getLeftRotation(), {_newScale}, {_t}.getRightRotation())
+    {_e}.setTransformation({_newTr})
+
+function evatorBar(percent: number) :: string:
+    set {_filled} to round({_percent} / 100 * 15)
+    set {_bar} to ""
+    loop 15 times:
+        if loop-number <= {_filled}:
+            set {_bar} to "%{_bar}%<#A8E6CF>┃"
+        else:
+            set {_bar} to "%{_bar}%<#6C757D>┃"
+    return {_bar}
+
+function evatorParseSize(raw: string) :: number:
+    set {_s} to {_raw} in lowercase
+    replace all " " with "" in {_s}
+    set {_num} to -1
+
+    if {_s} contains "на":
+        set {_p::*} to {_s} split at "на"
+        return -1 if size of {_p::*} is not 2
+        return -2 if {_p::1} is not {_p::2}
+        set {_num} to {_p::1} parsed as integer
+    else if {_s} contains "x":
+        set {_p::*} to {_s} split at "x"
+        return -1 if size of {_p::*} is not 2
+        return -2 if {_p::1} is not {_p::2}
+        set {_num} to {_p::1} parsed as integer
+    else if {_s} contains "х":
+        set {_p::*} to {_s} split at "х"
+        return -1 if size of {_p::*} is not 2
+        return -2 if {_p::1} is not {_p::2}
+        set {_num} to {_p::1} parsed as integer
+    else if {_s} contains "*":
+        set {_p::*} to {_s} split at "*"
+        return -1 if size of {_p::*} is not 2
+        return -2 if {_p::1} is not {_p::2}
+        set {_num} to {_p::1} parsed as integer
+    else:
+        set {_num} to {_s} parsed as integer
+
+    return -1 if {_num} is not set
+    return -4 if {_num} < 3
+    return -3 if mod({_num}, 2) is 0
+    set {_max} to yaml value "settings.max_size" from "elevators_db"
+    set {_max} to 11 if {_max} is not set
+    return -5 if {_num} > {_max}
+    return {_num}
+
+function evatorStyleName(style: string) :: string:
+    return "Кварцевый ⭐" if {_style} is "quartz"
+    return "Аметистовый ◆" if {_style} is "amethyst"
+    return "Железный 🛡" if {_style} is "iron"
+    return "Золотой ★" if {_style} is "gold"
+    return "Кварцевый ⭐"
+
+function evatorNextStyle(style: string) :: string:
+    return "amethyst" if {_style} is "quartz"
+    return "iron" if {_style} is "amethyst"
+    return "gold" if {_style} is "iron"
+    return "quartz"
+
+function evatorFloorName(id: string, targetY: number) :: string:
+    set {_floors::*} to yaml list "elevators.%{_id}%.floors" from "elevators_db"
+    loop {_floors::*}:
+        set {_p::*} to loop-value split at "|"
+        if ({_p::1} parsed as number) is {_targetY}:
+            return {_p::2}
+    return "Y:%{_targetY}%"
+
+function evatorEnsureFloor(id: string, fy: number):
+    set {_floors::*} to yaml list "elevators.%{_id}%.floors" from "elevators_db"
+    loop {_floors::*}:
+        set {_p::*} to loop-value split at "|"
+        if ({_p::1} parsed as number) is {_fy}:
+            stop
+    set {_num} to (size of {_floors::*}) + 1
+    add "%{_fy}%|%{_num}% этаж" to yaml list "elevators.%{_id}%.floors" from "elevators_db"
+
+function evatorGetSortedFloors(id: string) :: strings:
+    set {_raw::*} to yaml list "elevators.%{_id}%.floors" from "elevators_db"
+    set {_count} to size of {_raw::*}
+    if {_count} <= 1:
+        return {_raw::*}
+    loop {_count} times:
+        set {_arr::%loop-number%} to {_raw::%loop-number%}
+    loop {_count} times:
+        set {_i} to 1
+        while {_i} < {_count}:
+            set {_next} to {_i} + 1
+            set {_p1::*} to {_arr::%{_i}%} split at "|"
+            set {_p2::*} to {_arr::%{_next}%} split at "|"
+            if ({_p1::1} parsed as number) > ({_p2::1} parsed as number):
+                set {_tmp} to {_arr::%{_i}%}
+                set {_arr::%{_i}%} to {_arr::%{_next}%}
+                set {_arr::%{_next}%} to {_tmp}
+            add 1 to {_i}
+    return {_arr::*}
+
+function evatorFindNearest(loc: location) :: string:
+    set {_wName} to name of world of {_loc}
+    set {_lx} to x-coordinate of {_loc}
+    set {_lz} to z-coordinate of {_loc}
+    set {_maxR} to yaml value "settings.button_search_radius" from "elevators_db"
+    set {_maxR} to 25 if {_maxR} is not set
+
+    set {_bestId} to ""
+    set {_bestDist} to {_maxR} + 1
+    set {_names::*} to yaml list "elevator_names" from "elevators_db"
+    loop {_names::*}:
+        set {_id} to loop-value
+        if yaml value "elevators.%{_id}%.world" from "elevators_db" is {_wName}:
+            set {_cx} to yaml value "elevators.%{_id}%.x" from "elevators_db"
+            set {_cz} to yaml value "elevators.%{_id}%.z" from "elevators_db"
+            set {_dx} to {_lx} - {_cx}
+            set {_dz} to {_lz} - {_cz}
+            set {_dist} to sqrt(({_dx} * {_dx}) + ({_dz} * {_dz}))
+            if {_dist} <= {_maxR}:
+                if {_dist} < {_bestDist}:
+                    set {_bestDist} to {_dist}
+                    set {_bestId} to {_id}
+    return {_bestId}
+
+# Отвязка кнопок и удаление их голограмм для конкретного этажа
+function evatorUnlinkFloorButtons(id: string, delY: number):
+    set {_bKeys::*} to yaml list "elevators.%{_id}%.buttons" from "elevators_db"
+    loop {_bKeys::*}:
+        set {_bk} to loop-value
+        set {_bData} to yaml value "buttons.%{_bk}%" from "elevators_db"
+        if {_bData} is set:
+            set {_bp::*} to {_bData} split at "|"
+            if ({_bp::2} parsed as number) is {_delY}:
+                if {evator::holo_btn::%{_bk}%} is set:
+                    kill {evator::holo_btn::%{_bk}%}
+                    delete {evator::holo_btn::%{_bk}%}
+                set {_bw} to yaml value "button_locs.%{_bk}%.w" from "elevators_db"
+                set {_bx} to yaml value "button_locs.%{_bk}%.x" from "elevators_db"
+                set {_by} to yaml value "button_locs.%{_bk}%.y" from "elevators_db"
+                set {_bz} to yaml value "button_locs.%{_bk}%.z" from "elevators_db"
+                set {_w} to world({_bw})
+                if {_w} is set:
+                    evatorKillNearbyHolos(location({_bx} + 0.5, {_by} + 1.15, {_bz} + 0.5, {_w}))
+                delete yaml value "buttons.%{_bk}%" from "elevators_db"
+                delete yaml value "button_locs.%{_bk}%" from "elevators_db"
+                remove {_bk} from yaml list "elevators.%{_id}%.buttons" from "elevators_db"
+
+# ==========================================
+# КОМПАКТНЫЕ ГОЛОГРАММЫ (ЛИФТ И КНОПКИ)
+# ==========================================
+
+function evatorKillNearbyHolos(loc: location):
+    loop all entities in radius 1.4 around {_loc}:
+        if scoreboard tags of loop-entity contains "evator_holo":
+            kill loop-entity
+
+function evatorUpdateLiftHolo(id: string, state: string = "idle", targetName: string = "", pct: number = 0):
+    if yaml value "settings.holograms_enabled" from "elevators_db" is not true:
+        if {evator::holo_lift::%{_id}%} is set:
+            kill {evator::holo_lift::%{_id}%}
+            delete {evator::holo_lift::%{_id}%}
+        stop
+
+    set {_wName} to yaml value "elevators.%{_id}%.world" from "elevators_db"
+    set {_w} to world({_wName})
+    stop if {_w} is not set
+    set {_cx} to yaml value "elevators.%{_id}%.x" from "elevators_db"
+    set {_cz} to yaml value "elevators.%{_id}%.z" from "elevators_db"
+    set {_cy} to {evator::cur_y::%{_id}%}
+    set {_cy} to yaml value "elevators.%{_id}%.current_y" from "elevators_db" if {_cy} is not set
+
+    set {_hLoc} to location({_cx} + 0.5, {_cy} + 2.1, {_cz} + 0.5, {_w})
+    set {_curFloor} to evatorFloorName({_id}, {_cy})
+
+    if {_state} is "up":
+        set {_txt} to "<#FFB7C5><b>✈ %{_id}%</b> <#89CFF0>▲<br><#FFDAC1>%{_targetName}% <#E2ECE9>%{_pct}%%%"
+    else if {_state} is "down":
+        set {_txt} to "<#FFB7C5><b>✈ %{_id}%</b> <#89CFF0>▼<br><#FFDAC1>%{_targetName}% <#E2ECE9>%{_pct}%%%"
+    else:
+        set {_txt} to "<#FFB7C5><b>✈ %{_id}%</b><br><#A8E6CF>★ %{_curFloor}%"
+
+    if {evator::holo_lift::%{_id}%} is set:
+        if {evator::holo_lift::%{_id}%} is alive:
+            teleport {evator::holo_lift::%{_id}%} to {_hLoc}
+            evatorSetHolo({evator::holo_lift::%{_id}%}, {_txt}, 0.65)
+            stop
+
+    evatorKillNearbyHolos({_hLoc})
+    spawn text display at {_hLoc}
+    set {_e} to last spawned entity
+    evatorSetHolo({_e}, {_txt}, 0.65)
+    add "evator_holo" to scoreboard tags of {_e}
+    set {evator::holo_lift::%{_id}%} to {_e}
+
+function evatorUpdateButtonHolo(bKey: string):
+    set {_data} to yaml value "buttons.%{_bKey}%" from "elevators_db"
+    stop if {_data} is not set
+    set {_p::*} to {_data} split at "|"
+    set {_id} to {_p::1}
+    set {_fy} to {_p::2} parsed as number
+    set {_mode} to {_p::3}
+    set {_mode} to "button" if {_mode} is not set
+
+    if {_mode} is "redstone":
+        if {evator::holo_btn::%{_bKey}%} is set:
+            kill {evator::holo_btn::%{_bKey}%}
+            delete {evator::holo_btn::%{_bKey}%}
+        stop
+
+    if yaml value "settings.holograms_enabled" from "elevators_db" is not true:
+        if {evator::holo_btn::%{_bKey}%} is set:
+            kill {evator::holo_btn::%{_bKey}%}
+            delete {evator::holo_btn::%{_bKey}%}
+        stop
+
+    set {_bw} to yaml value "button_locs.%{_bKey}%.w" from "elevators_db"
+    set {_bx} to yaml value "button_locs.%{_bKey}%.x" from "elevators_db"
+    set {_by} to yaml value "button_locs.%{_bKey}%.y" from "elevators_db"
+    set {_bz} to yaml value "button_locs.%{_bKey}%.z" from "elevators_db"
+    set {_w} to world({_bw})
+    stop if {_w} is not set
+
+    set {_hLoc} to location({_bx} + 0.5, {_by} + 1.15, {_bz} + 0.5, {_w})
+    set {_btnFloor} to evatorFloorName({_id}, {_fy})
+    set {_curY} to {evator::cur_y::%{_id}%}
+    set {_curY} to yaml value "elevators.%{_id}%.current_y" from "elevators_db" if {_curY} is not set
+
+    if {evator::moving::%{_id}%} is true:
+        set {_statusLine} to "<#FFDAC1>⌚ В пути"
+    else if {_curY} is {_fy}:
+        set {_statusLine} to "<#A8E6CF>☺ Тут"
+    else:
+        set {_statusLine} to "<#B5EAD7>▶ Вызвать"
+
+    set {_txt} to "<#FFB7C5><b>%{_btnFloor}%</b><br>%{_statusLine}%"
+
+    if {evator::holo_btn::%{_bKey}%} is set:
+        if {evator::holo_btn::%{_bKey}%} is alive:
+            evatorSetHolo({evator::holo_btn::%{_bKey}%}, {_txt}, 0.55)
+            stop
+
+    evatorKillNearbyHolos({_hLoc})
+    spawn text display at {_hLoc}
+    set {_e} to last spawned entity
+    evatorSetHolo({_e}, {_txt}, 0.55)
+    add "evator_holo" to scoreboard tags of {_e}
+    set {evator::holo_btn::%{_bKey}%} to {_e}
+
+function evatorRefreshButtons(id: string):
+    set {_keys::*} to yaml list "elevators.%{_id}%.buttons" from "elevators_db"
+    set {_curY} to {evator::cur_y::%{_id}%}
+    set {_curY} to yaml value "elevators.%{_id}%.current_y" from "elevators_db" if {_curY} is not set
+    set {_isMoving} to true if {evator::moving::%{_id}%} is true else false
+
+    loop {_keys::*}:
+        set {_bKey} to loop-value
+        set {_data} to yaml value "buttons.%{_bKey}%" from "elevators_db"
+        if {_data} is set:
+            set {_p::*} to {_data} split at "|"
+            set {_fy} to {_p::2} parsed as number
+            set {_mode} to {_p::3}
+
+            if {_mode} is "redstone":
+                set {_bw} to yaml value "button_locs.%{_bKey}%.w" from "elevators_db"
+                set {_bx} to yaml value "button_locs.%{_bKey}%.x" from "elevators_db"
+                set {_by} to yaml value "button_locs.%{_bKey}%.y" from "elevators_db"
+                set {_bz} to yaml value "button_locs.%{_bKey}%.z" from "elevators_db"
+                set {_w} to world({_bw})
+                if {_w} is set:
+                    set {_bLoc} to location({_bx}, {_by}, {_bz}, {_w})
+                    if {_isMoving} is false:
+                        if {_curY} is {_fy}:
+                            set block at {_bLoc} to redstone block
+                        else:
+                            set block at {_bLoc} to iron block
+                    else:
+                        set block at {_bLoc} to iron block
+
+            evatorUpdateButtonHolo({_bKey})
+
+function evatorDeleteAllButtons(id: string):
+    set {_keys::*} to yaml list "elevators.%{_id}%.buttons" from "elevators_db"
+    loop {_keys::*}:
+        set {_bKey} to loop-value
+        if {evator::holo_btn::%{_bKey}%} is set:
+            kill {evator::holo_btn::%{_bKey}%}
+            delete {evator::holo_btn::%{_bKey}%}
+        set {_bw} to yaml value "button_locs.%{_bKey}%.w" from "elevators_db"
+        set {_bx} to yaml value "button_locs.%{_bKey}%.x" from "elevators_db"
+        set {_by} to yaml value "button_locs.%{_bKey}%.y" from "elevators_db"
+        set {_bz} to yaml value "button_locs.%{_bKey}%.z" from "elevators_db"
+        set {_w} to world({_bw})
+        if {_w} is set:
+            set {_bLoc} to location({_bx}, {_by}, {_bz}, {_w})
+            evatorKillNearbyHolos(location({_bx} + 0.5, {_by} + 1.15, {_bz} + 0.5, {_w}))
+            set block at {_bLoc} to air
+        delete yaml value "buttons.%{_bKey}%" from "elevators_db"
+        delete yaml value "button_locs.%{_bKey}%" from "elevators_db"
+    delete yaml value "elevators.%{_id}%.buttons" from "elevators_db"
+    save yaml "elevators_db"
+
+# ==========================================
+# ПОСТРОЕНИЕ И ПРОВЕРКА ПЛАТФОРМЫ
+# ==========================================
+
+function evatorBuildPlatform(id: string, y: number, clearBlocks: boolean = false):
+    set {_wName} to yaml value "elevators.%{_id}%.world" from "elevators_db"
+    set {_w} to world({_wName})
+    stop if {_w} is not set
+    set {_cx} to yaml value "elevators.%{_id}%.x" from "elevators_db"
+    set {_cz} to yaml value "elevators.%{_id}%.z" from "elevators_db"
+    set {_size} to yaml value "elevators.%{_id}%.size" from "elevators_db"
+    set {_style} to yaml value "elevators.%{_id}%.style" from "elevators_db"
+    set {_style} to "quartz" if {_style} is not set
+
+    set {_r} to ({_size} - 1) / 2
+    set {_min} to {_r} * -1
+
+    set {_bCenter} to sea lantern
+    set {_bEdge} to chiseled quartz block
+    set {_bFill} to quartz block
+
+    if {_style} is "amethyst":
+        set {_bCenter} to sea lantern
+        set {_bEdge} to amethyst block
+        set {_bFill} to calcite
+    else if {_style} is "iron":
+        set {_bCenter} to glowstone
+        set {_bEdge} to iron block
+        set {_bFill} to quartz block
+    else if {_style} is "gold":
+        set {_bCenter} to sea lantern
+        set {_bEdge} to gold block
+        set {_bFill} to quartz block
+
+    loop integers from {_min} to {_r}:
+        set {_dx} to loop-number-1
+        loop integers from {_min} to {_r}:
+            set {_dz} to loop-number-2
+            set {_bLoc} to location({_cx} + {_dx}, {_y}, {_cz} + {_dz}, {_w})
+            if {_clearBlocks} is true:
+                set block at {_bLoc} to air
+            else:
+                if {_dx} is 0:
+                    if {_dz} is 0:
+                        set block at {_bLoc} to {_bCenter}
+                    else if abs({_dz}) is {_r}:
+                        set block at {_bLoc} to {_bEdge}
+                    else:
+                        set block at {_bLoc} to {_bFill}
+                else if abs({_dx}) is {_r}:
+                    set block at {_bLoc} to {_bEdge}
+                else if abs({_dz}) is {_r}:
+                    set block at {_bLoc} to {_bEdge}
+                else:
+                    set block at {_bLoc} to {_bFill}
+
+function evatorBuildCeiling(id: string, y: number, clearBlocks: boolean = false):
+    set {_wName} to yaml value "elevators.%{_id}%.world" from "elevators_db"
+    set {_w} to world({_wName})
+    stop if {_w} is not set
+    set {_cx} to yaml value "elevators.%{_id}%.x" from "elevators_db"
+    set {_cz} to yaml value "elevators.%{_id}%.z" from "elevators_db"
+    set {_size} to yaml value "elevators.%{_id}%.size" from "elevators_db"
+    set {_height} to yaml value "elevators.%{_id}%.ceiling_height" from "elevators_db"
+    stop if {_height} is not set
+    set {_ceilingY} to {_y} + {_height}
+    set {_r} to ({_size} - 1) / 2
+    set {_min} to {_r} * -1
+
+    loop integers from {_min} to {_r}:
+        set {_dx} to loop-number-1
+        loop integers from {_min} to {_r}:
+            set {_dz} to loop-number-2
+            set {_cLoc} to location({_cx} + {_dx}, {_ceilingY}, {_cz} + {_dz}, {_w})
+            if {_clearBlocks} is true:
+                set block at {_cLoc} to air
+            else:
+                set block at {_cLoc} to quartz block
+
+function evatorAtBlock(b: block) :: string:
+    set {_bw} to name of world of {_b}
+    set {_bx} to floor(x-coordinate of {_b})
+    set {_by} to floor(y-coordinate of {_b})
+    set {_bz} to floor(z-coordinate of {_b})
+    set {_names::*} to yaml list "elevator_names" from "elevators_db"
+    loop {_names::*}:
+        set {_id} to loop-value
+        if yaml value "elevators.%{_id}%.world" from "elevators_db" is {_bw}:
+            set {_cy} to {evator::cur_y::%{_id}%}
+            set {_cy} to yaml value "elevators.%{_id}%.current_y" from "elevators_db" if {_cy} is not set
+            if {_by} is {_cy}:
+                set {_cx} to yaml value "elevators.%{_id}%.x" from "elevators_db"
+                set {_cz} to yaml value "elevators.%{_id}%.z" from "elevators_db"
+                set {_size} to yaml value "elevators.%{_id}%.size" from "elevators_db"
+                set {_r} to ({_size} - 1) / 2
+                if abs({_bx} - {_cx}) <= {_r}:
+                    if abs({_bz} - {_cz}) <= {_r}:
+                        return {_id}
+    return ""
+
+function evatorUnderPlayer(p: player) :: string:
+    set {_res} to evatorAtBlock(block below {_p})
+    return {_res} if {_res} is not ""
+    return evatorAtBlock(block at {_p})
+
+# ==========================================
+# ДВИЖЕНИЕ ЛИФТА + ОБНОВЛЕНИЕ ГОЛОГРАММ И РЕДСТОУНА
+# ==========================================
+
+function evatorMove(id: string, targetY: number, caller: player):
+    if yaml value "settings.enabled" from "elevators_db" is not true:
+        evatorSound({_caller}, "entity.villager.no", 0.7, 1.0)
+        send mini message from "<#FF8B94>☹ Система лифтов временно отключена администрацией." to {_caller}
+        stop
+
+    if {evator::moving::%{_id}%} is true:
+        evatorSound({_caller}, "entity.villager.no", 0.7, 1.0)
+        send mini message from "<#FFDAC1>⚠ Лифт <#FFB7C5>%{_id}% <#FFDAC1>уже в движении, подожди немного!" to {_caller}
+        stop
+
+    set {_cdSec} to yaml value "settings.cooldown" from "elevators_db"
+    set {_cdSec} to 3 if {_cdSec} is not set
+    if {evator::cd::%{_id}%} is set:
+        set {_cdSpan} to "%{_cdSec}% seconds" parsed as timespan
+        if difference between {evator::cd::%{_id}%} and now < {_cdSpan}:
+            evatorSound({_caller}, "entity.villager.no", 0.7, 1.0)
+            send mini message from "<#FFDAC1>⌚ Лифт перезагружается, подожди пару секунд!" to {_caller}
+            stop
+
+    set {_curY} to {evator::cur_y::%{_id}%}
+    set {_curY} to yaml value "elevators.%{_id}%.current_y" from "elevators_db" if {_curY} is not set
+    if {_curY} is {_targetY}:
+        evatorSound({_caller}, "entity.villager.no", 0.7, 1.0)
+        send mini message from "<#FFDAC1>⚠ Лифт уже находится на этом этаже!" to {_caller}
+        stop
+
+    set {_wName} to yaml value "elevators.%{_id}%.world" from "elevators_db"
+    set {_w} to world({_wName})
+    set {_cx} to yaml value "elevators.%{_id}%.x" from "elevators_db"
+    set {_cz} to yaml value "elevators.%{_id}%.z" from "elevators_db"
+    set {_size} to yaml value "elevators.%{_id}%.size" from "elevators_db"
+    set {_r} to ({_size} - 1) / 2
+
+    set {_speed} to yaml value "settings.speed_ticks" from "elevators_db"
+    set {_speed} to 3 if {_speed} is not set
+    set {_waitSpan} to "%{_speed}% ticks" parsed as timespan
+    set {_useParticles} to yaml value "settings.particles_enabled" from "elevators_db"
+
+    set {_dir} to 1 if {_targetY} > {_curY} else -1
+    set {_dirState} to "up" if {_dir} is 1 else "down"
+    set {_totalSteps} to abs({_targetY} - {_curY})
+    set {_step} to 0
+    set {_targetName} to evatorFloorName({_id}, {_targetY})
+
+    set {evator::moving::%{_id}%} to true
+    evatorRefreshButtons({_id})
+
+    set {_startLoc} to location({_cx} + 0.5, {_curY} + 1, {_cz} + 0.5, {_w})
+    evatorWorldSound({_startLoc}, "block.piston.extend", 0.7, 1.2)
+
+    while {_curY} is not {_targetY}:
+        if yaml value "elevators.%{_id}%.size" from "elevators_db" is not set:
+            delete {evator::moving::%{_id}%}
+            stop
+
+        set {_nextY} to {_curY} + {_dir}
+        add 1 to {_step}
+        set {_pct} to round(({_step} / {_totalSteps}) * 100)
+        set {_bar} to evatorBar({_pct})
+
+        clear {_riders::*}
+        loop all players in {_w}:
+            set {_px} to x-coordinate of loop-player
+            set {_py} to y-coordinate of loop-player
+            set {_pz} to z-coordinate of loop-player
+            if {_px} >= ({_cx} - {_r} - 0.35):
+                if {_px} <= ({_cx} + {_r} + 1.35):
+                    if {_pz} >= ({_cz} - {_r} - 0.35):
+                        if {_pz} <= ({_cz} + {_r} + 1.35):
+                            if {_py} >= ({_curY} - 0.2):
+                                if {_py} <= ({_curY} + 2.8):
+                                    add loop-player to {_riders::*}
+
+        evatorBuildCeiling({_id}, {_curY}, true)
+        if {_dir} is 1:
+            loop {_riders::*}:
+                set {_pLoc} to location of loop-value
+                set y-coordinate of {_pLoc} to {_nextY} + 1.05
+                set fall distance of loop-value to 0
+                teleport loop-value to {_pLoc}
+            evatorBuildPlatform({_id}, {_curY}, true)
+            evatorBuildPlatform({_id}, {_nextY}, false)
+        else:
+            evatorBuildPlatform({_id}, {_curY}, true)
+            evatorBuildPlatform({_id}, {_nextY}, false)
+            loop {_riders::*}:
+                set {_pLoc} to location of loop-value
+                set y-coordinate of {_pLoc} to {_nextY} + 1.05
+                set fall distance of loop-value to 0
+                teleport loop-value to {_pLoc}
+
+        evatorBuildCeiling({_id}, {_nextY}, false)
+        set {_curY} to {_nextY}
+        set {evator::cur_y::%{_id}%} to {_curY}
+        evatorUpdateLiftHolo({_id}, {_dirState}, {_targetName}, {_pct})
+
+        set {_midLoc} to location({_cx} + 0.5, {_curY} + 1.1, {_cz} + 0.5, {_w})
+        if mod({_step}, 2) is 0:
+            evatorWorldSound({_midLoc}, "block.amethyst_block.step", 0.5, 1.1 + ({_pct} / 200))
+        if {_useParticles} is true:
+            draw 4 of end rod at {_midLoc} with offset vector({_r} * 0.6, 0.1, {_r} * 0.6) with extra 0.01
+
+        set {_arrow} to "▲" if {_dir} is 1 else "▼"
+        loop {_riders::*}:
+            send action bar formatted "<#FFB7C5>%{_arrow}% <#FFFFFF>%{_targetName}%  %{_bar}%  <#C7CEEA>Y:%{_curY}%" to loop-value
+
+        wait {_waitSpan}
+
+    set yaml value "elevators.%{_id}%.current_y" from "elevators_db" to {_curY}
+    save yaml "elevators_db"
+    delete {evator::moving::%{_id}%}
+    set {evator::cd::%{_id}%} to now
+
+    evatorUpdateLiftHolo({_id}, "idle", "", 100)
+    evatorRefreshButtons({_id})
+
+    set {_endLoc} to location({_cx} + 0.5, {_curY} + 1, {_cz} + 0.5, {_w})
+    evatorWorldSound({_endLoc}, "block.note_block.bell", 0.9, 1.3)
+    loop all players in radius ({_r} + 3) around {_endLoc}:
+        send action bar formatted "<#A8E6CF>☺ Прибытие: <#FFFFFF>&l%{_targetName}% <#C7CEEA>(Y:%{_curY}%)" to loop-player
+
+# ==========================================
+# ВЫДАЧА БЛОКА-УСТАНОВЩИКА КНОПОК / РЕДСТОУНА
+# ==========================================
+
+function evatorGiveButtonTool(p: player, stepY: number, everyN: number, offsetY: number, count: number, mode: string):
+    if {_mode} is "redstone":
+        set {_item} to redstone block named formatted "<#FF8B94>&l⚡ Установщик Редстоун-индикаторов"
+    else:
+        set {_item} to lodestone named formatted "<#89CFF0>&l✈ Установщик кнопок лифта"
+
+    clear {_lore::*}
+    add formatted "" to {_lore::*}
+    if {_mode} is "redstone":
+        add formatted "<#E2ECE9>Ставит столбик редстоун-индикаторов (без голограмм):" to {_lore::*}
+        add formatted "<#FFDAC1>◆ Лифт на этаже → <#FF8B94>Редстоун-блок ⚡" to {_lore::*}
+        add formatted "<#FFDAC1>◆ Лифт уехал → <#E2ECE9>Обычный железный блок" to {_lore::*}
+    else:
+        add formatted "<#E2ECE9>Ставит столбик кнопок вызова с голограммами" to {_lore::*}
+    add formatted "" to {_lore::*}
+    add formatted "<#C7CEEA>Шаг по Y: <#FFFFFF>%{_stepY}% бл. <#C7CEEA>| Каждые: <#FFFFFF>%{_everyN}% эт." to {_lore::*}
+    add formatted "<#C7CEEA>Разница Y: <#FFFFFF>%{_offsetY}% бл. <#C7CEEA>| Кол-во: <#FFFFFF>%{_count}% шт." to {_lore::*}
+    add formatted "<#B5EAD7>CFG:%{_stepY}%|%{_everyN}%|%{_offsetY}%|%{_count}%|%{_mode}%" to {_lore::*}
+    add formatted "" to {_lore::*}
+    add formatted "<#A8E6CF>▶ Поставь этот блок возле лифта ⛀" to {_lore::*}
+    set lore of {_item} to {_lore::*}
+
+    give {_item} to {_p}
+    evatorSound({_p}, "entity.experience_orb.pickup", 0.8, 1.2)
+    send mini message from "" to {_p}
+    if {_mode} is "redstone":
+        send mini message from "<#A8E6CF><b>☺ Выдан установщик Редстоун-индикаторов! ⚡</b>" to {_p}
+    else:
+        send mini message from "<#A8E6CF><b>☺ Выдан установщик кнопок лифта! ✈</b>" to {_p}
+    send mini message from "<#E2ECE9>Поставь блок рядом с нужным лифтом — скрипт сам расставит <#FFB7C5>%{_count}% шт. <#E2ECE9>с шагом <#C7CEEA>%{_stepY} * {_everyN}% бл. <#E2ECE9>(смещение этажа: <#FFDAC1>%{_offsetY}%<#E2ECE9>)." to {_p}
+    send mini message from "" to {_p}
+
+# ==========================================
+# GUI: ВЫБОР ЭТАЖА (ИГРОК) И АДМИН-МЕНЮ
+# ==========================================
+
+function openPlayerFloorMenu(p: player, id: string):
+    set {_u} to uuid of {_p}
+    set {_inv} to chest inventory with 5 rows named formatted "<#FFB7C5>✈ Лифт: <#FFFFFF>%{_id}%"
+
+    set {_g1} to pink stained glass pane named " "
+    set {_g2} to white stained glass pane named " "
+    loop 45 times:
+        set {_s} to loop-number - 1
+        set slot {_s} of {_inv} to ({_g1} if mod({_s}, 2) is 0 else {_g2})
+
+    set {_curY} to {evator::cur_y::%{_id}%}
+    set {_curY} to yaml value "elevators.%{_id}%.current_y" from "elevators_db" if {_curY} is not set
+
+    set {_floors::*} to evatorGetSortedFloors({_id})
+    delete {evator::floor_slot_map::%{_u}%::*}
+
+    set {_slot} to 10
+    loop {_floors::*}:
+        set {_parts::*} to loop-value split at "|"
+        set {_fy} to {_parts::1} parsed as number
+        set {_fname} to {_parts::2}
+
+        if {_fy} is {_curY}:
+            set {_item} to nether star named formatted "<#A8E6CF>&l★ %{_fname}% (Вы здесь)"
+            set lore of {_item} to formatted "", formatted "<#E2ECE9>Высота: <#C7CEEA>Y: %{_fy}%", formatted "<#A8E6CF>☺ Текущий этаж лифта"
+        else:
+            set {_item} to paper named formatted "<#89CFF0>&l▶ %{_fname}%"
+            clear {_lore::*}
+            add formatted "" to {_lore::*}
+            add formatted "<#E2ECE9>Высота: <#C7CEEA>Y: %{_fy}%" to {_lore::*}
+            if {_fy} > {_curY}:
+                add formatted "<#FFDAC1>Направление: Вверх (▲ +%{_fy} - {_curY}% бл.)" to {_lore::*}
+            else:
+                add formatted "<#FFDAC1>Направление: Вниз (▼ -%{_curY} - {_fy}% бл.)" to {_lore::*}
+            add formatted "" to {_lore::*}
+            add formatted "<#B5EAD7>▶ Нажми ЛКМ, чтобы поехать ⛀" to {_lore::*}
+            set lore of {_item} to {_lore::*}
+
+        set slot {_slot} of {_inv} to {_item}
+        set {evator::floor_slot_map::%{_u}%::%{_slot}%} to {_fy}
+        add 1 to {_slot}
+        set {_slot} to 19 if {_slot} is 17
+        set {_slot} to 28 if {_slot} is 26
+        exit loop if {_slot} > 34
+
+    set slot 40 of {_inv} to barrier named formatted "<#FF8B94>&l⛂ Закрыть меню"
+
+    set {evator::gui_inv::%{_u}%} to {_inv}
+    set {evator::gui_type::%{_u}%} to "player_floors"
+    set {evator::gui_target::%{_u}%} to {_id}
+    open {_inv} to {_p}
+    evatorSound({_p}, "ui.button.click", 0.7, 1.2)
+
+function openAdminEvatorMain(p: player):
+    set {_u} to uuid of {_p}
+    set {_inv} to chest inventory with 5 rows named formatted "<#C7CEEA>۞ Управление лифтами"
+
+    set {_g1} to light blue stained glass pane named " "
+    set {_g2} to white stained glass pane named " "
+    loop 45 times:
+        set {_s} to loop-number - 1
+        set slot {_s} of {_inv} to ({_g1} if mod({_s}, 2) is 0 else {_g2})
+
+    set {_names::*} to yaml list "elevator_names" from "elevators_db"
+    delete {evator::admin_list_map::%{_u}%::*}
+
+    if size of {_names::*} is 0:
+        set {_empty} to paper named formatted "<#FFDAC1>&lЛифтов пока нет ☔"
+        set lore of {_empty} to formatted "", formatted "<#E2ECE9>Создай первый лифт командой:", formatted "<#89CFF0>/evator create <название> <3|5|7> [высота_потолка]"
+        set slot 22 of {_inv} to {_empty}
+    else:
+        set {_slot} to 10
+        loop {_names::*}:
+            set {_id} to loop-value
+            set {_sz} to yaml value "elevators.%{_id}%.size" from "elevators_db"
+            set {_cx} to yaml value "elevators.%{_id}%.x" from "elevators_db"
+            set {_cz} to yaml value "elevators.%{_id}%.z" from "elevators_db"
+            set {_cy} to {evator::cur_y::%{_id}%}
+            set {_st} to yaml value "elevators.%{_id}%.style" from "elevators_db"
+            set {_fl::*} to yaml list "elevators.%{_id}%.floors" from "elevators_db"
+            set {_btns::*} to yaml list "elevators.%{_id}%.buttons" from "elevators_db"
+
+            set {_item} to quartz block named formatted "<#FFB7C5>&l✈ Лифт: <#FFFFFF>%{_id}%"
+            clear {_ilore::*}
+            add formatted "" to {_ilore::*}
+            add formatted "<#E2ECE9>Размер: <#A8E6CF>%{_sz}%x%{_sz}%" to {_ilore::*}
+            add formatted "<#E2ECE9>Стиль: <#FFDAC1>%evatorStyleName({_st})%" to {_ilore::*}
+            add formatted "<#E2ECE9>Этажей: <#89CFF0>%size of {_fl::*}% <#E2ECE9>| Кнопок: <#C7CEEA>%size of {_btns::*}%" to {_ilore::*}
+            add formatted "<#E2ECE9>Позиция: <#C7CEEA>X:%{_cx}% Y:%{_cy}% Z:%{_cz}%" to {_ilore::*}
+            add formatted "" to {_ilore::*}
+            add formatted "<#B5EAD7>▶ ЛКМ — управлять лифтом ⛀" to {_ilore::*}
+            set lore of {_item} to {_ilore::*}
+
+            set slot {_slot} of {_inv} to {_item}
+            set {evator::admin_list_map::%{_u}%::%{_slot}%} to {_id}
+            add 1 to {_slot}
+            add 2 to {_slot} if mod({_slot}, 9) is 8
+            exit loop if {_slot} > 34
+
+    set {_setBtn} to comparator named formatted "<#FFDAC1>&l۞ Настройки скрипта"
+    set lore of {_setBtn} to formatted "<#E2ECE9>Скорость, голограммы, радиус, звуки и др.", formatted "<#B5EAD7>▶ Нажми ЛКМ ⛀"
+    set slot 40 of {_inv} to {_setBtn}
+
+    set {evator::gui_inv::%{_u}%} to {_inv}
+    set {evator::gui_type::%{_u}%} to "admin_main"
+    open {_inv} to {_p}
+    evatorSound({_p}, "ui.button.click", 0.7, 1.0)
+
+function openAdminEvatorEdit(p: player, id: string):
+    set {_u} to uuid of {_p}
+    set {_inv} to chest inventory with 5 rows named formatted "<#FFB7C5>⚙ Лифт: <#FFFFFF>%{_id}%"
+
+    set {_g} to white stained glass pane named " "
+    loop 45 times:
+        set slot (loop-number - 1) of {_inv} to {_g}
+
+    set {_st} to yaml value "elevators.%{_id}%.style" from "elevators_db"
+    set {_sz} to yaml value "elevators.%{_id}%.size" from "elevators_db"
+    set {_curY} to {evator::cur_y::%{_id}%}
+    set {_py} to floor(y-coordinate of {_p}) - 1
+
+    set {_addF} to emerald named formatted "<#A8E6CF>&l☺ Добавить этаж (Y:%{_py}%)"
+    set lore of {_addF} to formatted "<#E2ECE9>Создаст этаж на твоей текущей высоте", formatted "<#B5EAD7>▶ Нажми ЛКМ ⛀"
+    set slot 10 of {_inv} to {_addF}
+
+    set {_styleBtn} to amethyst shard named formatted "<#C7CEEA>&l◆ Стиль: %evatorStyleName({_st})%"
+    set lore of {_styleBtn} to formatted "<#E2ECE9>Перестраивает платформу на лету", formatted "<#B5EAD7>▶ ЛКМ — сменить стиль ⛀"
+    set slot 11 of {_inv} to {_styleBtn}
+
+    set {_tpBtn} to ender pearl named formatted "<#89CFF0>&l✈ Телепортироваться к лифту"
+    set lore of {_tpBtn} to formatted "<#E2ECE9>Переместит тебя прямо на платформу", formatted "<#B5EAD7>▶ Нажми ЛКМ ⛀"
+    set slot 13 of {_inv} to {_tpBtn}
+
+    set {_clrBtns} to shears named formatted "<#FFDAC1>&l✂ Очистить все кнопки"
+    set lore of {_clrBtns} to formatted "<#E2ECE9>Удалит все привязанные кнопки, редстоун", formatted "<#E2ECE9>и их голограммы у этого лифта", formatted "<#FF8B94>⚠ Shift + ПКМ для очистки!"
+    set slot 15 of {_inv} to {_clrBtns}
+
+    set {_delBtn} to barrier named formatted "<#FF8B94>&l☠ Удалить лифт"
+    set lore of {_delBtn} to formatted "<#E2ECE9>Уберёт платформу (%{_sz}%x%{_sz}%), кнопки и голограммы", formatted "<#FF8B94>⚠ Shift + ПКМ для удаления!"
+    set slot 16 of {_inv} to {_delBtn}
+
+    set {_floors::*} to evatorGetSortedFloors({_id})
+    delete {evator::floor_slot_map::%{_u}%::*}
+    set {_slot} to 19
+    loop {_floors::*}:
+        set {_parts::*} to loop-value split at "|"
+        set {_fy} to {_parts::1} parsed as number
+        set {_fname} to {_parts::2}
+        set {_fItem} to paper named formatted "<#FFDAC1>&l★ %{_fname}% <#C7CEEA>(Y:%{_fy}%)"
+        clear {_flore::*}
+        add formatted "<#A8E6CF>☺ Лифт сейчас на этом этаже" to {_flore::*} if {_fy} is {_curY}
+        add formatted "<#B5EAD7>▶ ЛКМ — отправить лифт сюда ⛀" to {_flore::*}
+        add formatted "<#FF8B94>▶ Shift + ПКМ — удалить этаж ☠" to {_flore::*}
+        set lore of {_fItem} to {_flore::*}
+        set slot {_slot} of {_inv} to {_fItem}
+        set {evator::floor_slot_map::%{_u}%::%{_slot}%} to {_fy}
+        add 1 to {_slot}
+        set {_slot} to 28 if {_slot} is 26
+        exit loop if {_slot} > 34
+
+    set slot 40 of {_inv} to arrow named formatted "<#FFB7C5>&l⛀ Назад к списку"
+
+    set {evator::gui_inv::%{_u}%} to {_inv}
+    set {evator::gui_type::%{_u}%} to "admin_edit"
+    set {evator::gui_target::%{_u}%} to {_id}
+    open {_inv} to {_p}
+    evatorSound({_p}, "ui.button.click", 0.7, 1.1)
+
+function openAdminEvatorSettings(p: player):
+    set {_u} to uuid of {_p}
+    set {_inv} to chest inventory with 4 rows named formatted "<#FFDAC1>۞ Настройки лифтов (10)"
+
+    set {_g1} to pink stained glass pane named " "
+    set {_g2} to white stained glass pane named " "
+    loop 36 times:
+        set {_s} to loop-number - 1
+        set slot {_s} of {_inv} to ({_g1} if mod({_s}, 2) is 0 else {_g2})
+
+    set {_sEn} to yaml value "settings.enabled" from "elevators_db"
+    set {_sSpd} to yaml value "settings.speed_ticks" from "elevators_db"
+    set {_sMax} to yaml value "settings.max_size" from "elevators_db"
+    set {_sCd} to yaml value "settings.cooldown" from "elevators_db"
+    set {_sSnd} to yaml value "settings.sounds_enabled" from "elevators_db"
+    set {_sPrt} to yaml value "settings.particles_enabled" from "elevators_db"
+    set {_sPro} to yaml value "settings.protect_blocks" from "elevators_db"
+    set {_sJs} to yaml value "settings.jump_sneak_control" from "elevators_db"
+    set {_sHolo} to yaml value "settings.holograms_enabled" from "elevators_db"
+    set {_sRad} to yaml value "settings.button_search_radius" from "elevators_db"
+
+    set {_i1} to (lime dye if {_sEn} is true else red dye) named formatted ("<#A8E6CF>&l1. Система лифтов: ВКЛ ☺" if {_sEn} is true else "<#FF8B94>&l1. Система лифтов: ВЫКЛ ☹")
+    set lore of {_i1} to formatted "<#E2ECE9>Вкл/Выкл движения всех лифтов", formatted "<#B5EAD7>▶ ЛКМ — переключить ⛀"
+    set slot 10 of {_inv} to {_i1}
+
+    set {_i2} to feather named formatted "<#89CFF0>&l2. Скорость: %{_sSpd}% тик./блок ⚡"
+    set lore of {_i2} to formatted "<#E2ECE9>Меньше тиков = быстрее лифт (1-20)", formatted "<#A8E6CF>▶ ЛКМ: +1  <#FF8B94>▶ ПКМ: -1"
+    set slot 11 of {_inv} to {_i2}
+
+    set {_i3} to quartz block named formatted "<#FFDAC1>&l3. Макс. размер: %{_sMax}%x%{_sMax}% ◆"
+    set lore of {_i3} to formatted "<#E2ECE9>Всегда нечётное число (шаг 2)", formatted "<#A8E6CF>▶ ЛКМ: +2  <#FF8B94>▶ ПКМ: -2"
+    set slot 12 of {_inv} to {_i3}
+
+    set {_i4} to clock named formatted "<#C7CEEA>&l4. Кулдаун: %{_sCd}% сек. ⌚"
+    set lore of {_i4} to formatted "<#E2ECE9>Задержка перед повторным запуском", formatted "<#A8E6CF>▶ ЛКМ: +1 сек  <#FF8B94>▶ ПКМ: -1 сек"
+    set slot 13 of {_inv} to {_i4}
+
+    set {_i5} to note block named formatted ("<#A8E6CF>&l5. Звуки лифта: ВКЛ ☺" if {_sSnd} is true else "<#FF8B94>&l5. Звуки лифта: ВЫКЛ ☹")
+    set lore of {_i5} to formatted "<#E2ECE9>Звуки старта, движения и прибытия", formatted "<#B5EAD7>▶ ЛКМ — переключить ⛀"
+    set slot 14 of {_inv} to {_i5}
+
+    set {_i6} to glowstone dust named formatted ("<#A8E6CF>&l6. Частицы: ВКЛ ☺" if {_sPrt} is true else "<#FF8B94>&l6. Частицы: ВЫКЛ ☹")
+    set lore of {_i6} to formatted "<#E2ECE9>Эффекты при движении платформы", formatted "<#B5EAD7>▶ ЛКМ — переключить ⛀"
+    set slot 15 of {_inv} to {_i6}
+
+    set {_i7} to shield named formatted ("<#A8E6CF>&l7. Защита блоков: ВКЛ ☺" if {_sPro} is true else "<#FF8B94>&l7. Защита блоков: ВЫКЛ ☹")
+    set lore of {_i7} to formatted "<#E2ECE9>Защита платформ, кнопок и редстоуна", formatted "<#B5EAD7>▶ ЛКМ — переключить ⛀"
+    set slot 16 of {_inv} to {_i7}
+
+    set {_i8} to iron boots named formatted ("<#A8E6CF>&l8. Прыжок / Shift: ВКЛ ☺" if {_sJs} is true else "<#FF8B94>&l8. Прыжок / Shift: ВЫКЛ ☹")
+    set lore of {_i8} to formatted "<#E2ECE9>Прыжок — вверх, Shift — вниз", formatted "<#B5EAD7>▶ ЛКМ — переключить ⛀"
+    set slot 20 of {_inv} to {_i8}
+
+    set {_i9} to name tag named formatted ("<#A8E6CF>&l9. Голограммы: ВКЛ ☺" if {_sHolo} is true else "<#FF8B94>&l9. Голограммы: ВЫКЛ ☹")
+    set lore of {_i9} to formatted "<#E2ECE9>Голограммы над лифтами и кнопками", formatted "<#B5EAD7>▶ ЛКМ — переключить ⛀"
+    set slot 22 of {_inv} to {_i9}
+
+    set {_i10} to compass named formatted "<#89CFF0>&l10. Радиус поиска лифта: %{_sRad}% бл. ۞"
+    set lore of {_i10} to formatted "<#E2ECE9>Макс. дистанция при установке кнопок", formatted "<#A8E6CF>▶ ЛКМ: +5 бл.  <#FF8B94>▶ ПКМ: -5 бл."
+    set slot 24 of {_inv} to {_i10}
+
+    set slot 31 of {_inv} to arrow named formatted "<#FFB7C5>&l⛀ Назад к лифтам"
+
+    set {evator::gui_inv::%{_u}%} to {_inv}
+    set {evator::gui_type::%{_u}%} to "admin_settings"
+    open {_inv} to {_p}
+    evatorSound({_p}, "ui.button.click", 0.7, 1.1)
+
+# ==========================================
+# ОБРАБОТКА КЛИКОВ И ЗАЩИТА GUI
+# ==========================================
+
+on inventory drag:
+    if {evator::gui_inv::%uuid of player%} is set:
+        cancel event if player's current inventory is {evator::gui_inv::%uuid of player%}
+
+on inventory close:
+    set {_u} to uuid of player
+    if {evator::gui_inv::%{_u}%} is set:
+        if event-inventory is {evator::gui_inv::%{_u}%}:
+            delete {evator::gui_inv::%{_u}%}
+            delete {evator::gui_type::%{_u}%}
+
+on inventory click:
+    set {_u} to uuid of player
+    stop if {evator::gui_inv::%{_u}%} is not set
+    stop if player's current inventory is not {evator::gui_inv::%{_u}%}
+    cancel event
+    stop if event-inventory is not {evator::gui_inv::%{_u}%}
+
+    set {_type} to {evator::gui_type::%{_u}%}
+    set {_slot} to index of clicked slot
+
+    if {_type} is "player_floors":
+        if {_slot} is 40:
+            close player's inventory
+            evatorSound(player, "ui.button.click", 0.6, 0.8)
+            stop
+        if {evator::floor_slot_map::%{_u}%::%{_slot}%} is set:
+            set {_targetY} to {evator::floor_slot_map::%{_u}%::%{_slot}%}
+            set {_id} to {evator::gui_target::%{_u}%}
+            close player's inventory
+            evatorMove({_id}, {_targetY}, player)
+            stop
+
+    if {_type} is "admin_main":
+        if {_slot} is 40:
+            openAdminEvatorSettings(player)
+            stop
+        if {evator::admin_list_map::%{_u}%::%{_slot}%} is set:
+            openAdminEvatorEdit(player, {evator::admin_list_map::%{_u}%::%{_slot}%})
+            stop
+
+    if {_type} is "admin_edit":
+        set {_id} to {evator::gui_target::%{_u}%}
+        if {_slot} is 40:
+            openAdminEvatorMain(player)
+            stop
+        if {_slot} is 10:
+            set {_py} to floor(y-coordinate of player) - 1
+            set {_floors::*} to yaml list "elevators.%{_id}%.floors" from "elevators_db"
+            loop {_floors::*}:
+                set {_p::*} to loop-value split at "|"
+                if ({_p::1} parsed as number) is {_py}:
+                    evatorSound(player, "entity.villager.no", 0.7, 1.0)
+                    send mini message from "<#FF8B94>☹ Этаж на высоте Y:%{_py}% уже существует!" to player
+                    stop
+            set {_fNum} to (size of {_floors::*}) + 1
+            add "%{_py}%|%{_fNum}% этаж" to yaml list "elevators.%{_id}%.floors" from "elevators_db"
+            save yaml "elevators_db"
+            evatorUpdateLiftHolo({_id}, "idle", "", 0)
+            evatorSound(player, "entity.player.levelup", 0.7, 1.2)
+            openAdminEvatorEdit(player, {_id})
+            stop
+        if {_slot} is 11:
+            if {evator::moving::%{_id}%} is true:
+                evatorSound(player, "entity.villager.no", 0.7, 1.0)
+                send mini message from "<#FF8B94>☹ Нельзя менять стиль, пока лифт едет!" to player
+                stop
+            set {_newSt} to evatorNextStyle(yaml value "elevators.%{_id}%.style" from "elevators_db")
+            set yaml value "elevators.%{_id}%.style" from "elevators_db" to {_newSt}
+            save yaml "elevators_db"
+            evatorBuildPlatform({_id}, {evator::cur_y::%{_id}%}, false)
+            evatorSound(player, "block.amethyst_block.chime", 0.8, 1.2)
+            openAdminEvatorEdit(player, {_id})
+            stop
+        if {_slot} is 13:
+            set {_w} to world(yaml value "elevators.%{_id}%.world" from "elevators_db")
+            set {_cx} to yaml value "elevators.%{_id}%.x" from "elevators_db"
+            set {_cz} to yaml value "elevators.%{_id}%.z" from "elevators_db"
+            close player's inventory
+            teleport player to location({_cx} + 0.5, {evator::cur_y::%{_id}%} + 1.1, {_cz} + 0.5, {_w})
+            evatorSound(player, "entity.enderman.teleport", 0.7, 1.1)
+            stop
+        if {_slot} is 15:
+            if click action is right mouse button with shift:
+                evatorDeleteAllButtons({_id})
+                evatorSound(player, "entity.item.break", 0.8, 1.0)
+                send mini message from "<#A8E6CF>☺ Все кнопки и редстоун-индикаторы лифта <#FFB7C5>%{_id}% <#A8E6CF>удалены!" to player
+                openAdminEvatorEdit(player, {_id})
+            else:
+                evatorSound(player, "entity.villager.no", 0.6, 1.0)
+                send mini message from "<#FFDAC1>⚠ Нажми Shift + ПКМ, чтобы очистить кнопки!" to player
+            stop
+        if {_slot} is 16:
+            if click action is right mouse button with shift:
+                if {evator::moving::%{_id}%} is true:
+                    evatorSound(player, "entity.villager.no", 0.7, 1.0)
+                    send mini message from "<#FF8B94>☹ Дождись остановки лифта!" to player
+                    stop
+                evatorDeleteAllButtons({_id})
+                if {evator::holo_lift::%{_id}%} is set:
+                    kill {evator::holo_lift::%{_id}%}
+                    delete {evator::holo_lift::%{_id}%}
+                evatorBuildPlatform({_id}, {evator::cur_y::%{_id}%}, true)
+                evatorBuildCeiling({_id}, {evator::cur_y::%{_id}%}, true)
+                delete yaml value "elevators.%{_id}%" from "elevators_db"
+                remove {_id} from yaml list "elevator_names" from "elevators_db"
+                delete {evator::cur_y::%{_id}%}
+                save yaml "elevators_db"
+                evatorSound(player, "entity.item.break", 0.8, 0.9)
+                send mini message from "<#A8E6CF>☺ Лифт <#FFB7C5>%{_id}% <#A8E6CF>полностью удалён!" to player
+                openAdminEvatorMain(player)
+            else:
+                evatorSound(player, "entity.villager.no", 0.6, 1.0)
+                send mini message from "<#FFDAC1>⚠ Нажми Shift + ПКМ для подтверждения удаления!" to player
+            stop
+        if {evator::floor_slot_map::%{_u}%::%{_slot}%} is set:
+            set {_fy} to {evator::floor_slot_map::%{_u}%::%{_slot}%}
+            if click action is right mouse button with shift:
+                set {_floors::*} to yaml list "elevators.%{_id}%.floors" from "elevators_db"
+                if size of {_floors::*} <= 1:
+                    evatorSound(player, "entity.villager.no", 0.7, 1.0)
+                    send mini message from "<#FF8B94>☹ Нельзя удалить последний этаж!" to player
+                    stop
+                loop {_floors::*}:
+                    set {_p::*} to loop-value split at "|"
+                    if ({_p::1} parsed as number) is {_fy}:
+                        remove loop-value from yaml list "elevators.%{_id}%.floors" from "elevators_db"
+                        exit loop
+                evatorUnlinkFloorButtons({_id}, {_fy})
+                save yaml "elevators_db"
+                evatorUpdateLiftHolo({_id}, "idle", "", 0)
+                evatorRefreshButtons({_id})
+                evatorSound(player, "entity.item.break", 0.7, 1.0)
+                openAdminEvatorEdit(player, {_id})
+            else:
+                close player's inventory
+                evatorMove({_id}, {_fy}, player)
+            stop
+
+    if {_type} is "admin_settings":
+        if {_slot} is 31:
+            openAdminEvatorMain(player)
+            stop
+        if {_slot} is 10:
+            set {_v} to yaml value "settings.enabled" from "elevators_db"
+            set yaml value "settings.enabled" from "elevators_db" to (false if {_v} is true else true)
+        else if {_slot} is 11:
+            set {_v} to yaml value "settings.speed_ticks" from "elevators_db"
+            add 1 to {_v} if click action is left mouse button or left mouse button with shift
+            subtract 1 from {_v} if click action is right mouse button or right mouse button with shift
+            set {_v} to 1 if {_v} < 1
+            set {_v} to 20 if {_v} > 20
+            set yaml value "settings.speed_ticks" from "elevators_db" to {_v}
+        else if {_slot} is 12:
+            set {_v} to yaml value "settings.max_size" from "elevators_db"
+            add 2 to {_v} if click action is left mouse button or left mouse button with shift
+            subtract 2 from {_v} if click action is right mouse button or right mouse button with shift
+            set {_v} to 3 if {_v} < 3
+            set {_v} to 21 if {_v} > 21
+            set yaml value "settings.max_size" from "elevators_db" to {_v}
+        else if {_slot} is 13:
+            set {_v} to yaml value "settings.cooldown" from "elevators_db"
+            add 1 to {_v} if click action is left mouse button or left mouse button with shift
+            subtract 1 from {_v} if click action is right mouse button or right mouse button with shift
+            set {_v} to 0 if {_v} < 0
+            set yaml value "settings.cooldown" from "elevators_db" to {_v}
+        else if {_slot} is 14:
+            set {_v} to yaml value "settings.sounds_enabled" from "elevators_db"
+            set yaml value "settings.sounds_enabled" from "elevators_db" to (false if {_v} is true else true)
+        else if {_slot} is 15:
+            set {_v} to yaml value "settings.particles_enabled" from "elevators_db"
+            set yaml value "settings.particles_enabled" from "elevators_db" to (false if {_v} is true else true)
+        else if {_slot} is 16:
+            set {_v} to yaml value "settings.protect_blocks" from "elevators_db"
+            set yaml value "settings.protect_blocks" from "elevators_db" to (false if {_v} is true else true)
+        else if {_slot} is 20:
+            set {_v} to yaml value "settings.jump_sneak_control" from "elevators_db"
+            set yaml value "settings.jump_sneak_control" from "elevators_db" to (false if {_v} is true else true)
+        else if {_slot} is 22:
+            set {_v} to yaml value "settings.holograms_enabled" from "elevators_db"
+            set {_newV} to (false if {_v} is true else true)
+            set yaml value "settings.holograms_enabled" from "elevators_db" to {_newV}
+            save yaml "elevators_db"
+            set {_names::*} to yaml list "elevator_names" from "elevators_db"
+            loop {_names::*}:
+                evatorUpdateLiftHolo(loop-value, "idle", "", 0)
+                evatorRefreshButtons(loop-value)
+        else if {_slot} is 24:
+            set {_v} to yaml value "settings.button_search_radius" from "elevators_db"
+            add 5 to {_v} if click action is left mouse button or left mouse button with shift
+            subtract 5 from {_v} if click action is right mouse button or right mouse button with shift
+            set {_v} to 5 if {_v} < 5
+            set {_v} to 100 if {_v} > 100
+            set yaml value "settings.button_search_radius" from "elevators_db" to {_v}
+        else:
+            stop
+        save yaml "elevators_db"
+        evatorSound(player, "block.note_block.pling", 0.7, 1.4)
+        openAdminEvatorSettings(player)
+        stop
+
+# ==========================================
+# УСТАНОВКА БЛОКА-УСТАНОВЩИКА В МИРЕ
+# ==========================================
+
+on place:
+    set {_tName} to uncolored name of player's tool
+    if {_tName} is not "✈ Установщик кнопок лифта":
+        if {_tName} is not "⚡ Установщик Редстоун-индикаторов":
+            stop
+
+    cancel event
+    if player does not have permission "evator.admin":
+        evatorSound(player, "entity.villager.no", 0.7, 1.0)
+        send mini message from "<#FF8B94>☹ У тебя нет прав на установку кнопок лифта!" to player
+        stop
+
+    set {_cfgRaw} to ""
+    loop lore of player's tool:
+        set {_line} to uncolored loop-value
+        if {_line} starts with "CFG:":
+            set {_cfgRaw} to last (length of {_line} - 4) characters of {_line}
+            exit loop
+
+    if {_cfgRaw} is "":
+        evatorSound(player, "entity.villager.no", 0.7, 1.0)
+        send mini message from "<#FF8B94>☹ Повреждённый блок-установщик! Получи новый командой <#89CFF0>/evator buttone" to player
+        stop
+
+    set {_loc} to location of event-block
+    set {_id} to evatorFindNearest({_loc})
+    if {_id} is "":
+        set {_maxR} to yaml value "settings.button_search_radius" from "elevators_db"
+        evatorSound(player, "entity.villager.no", 0.7, 1.0)
+        send mini message from "<#FF8B94>☹ Рядом (в радиусе %{_maxR}% бл.) не найден ни один лифт!" to player
+        stop
+
+    set {_parts::*} to {_cfgRaw} split at "|"
+    set {_stepY} to {_parts::1} parsed as integer
+    set {_everyN} to {_parts::2} parsed as integer
+    set {_offsetY} to {_parts::3} parsed as integer
+    set {_count} to {_parts::4} parsed as integer
+    set {_mode} to {_parts::5}
+
+    set {_w} to world of {_loc}
+    set {_wName} to name of {_w}
+    set {_bx} to floor(x-coordinate of {_loc})
+    set {_baseY} to floor(y-coordinate of {_loc})
+    set {_bz} to floor(z-coordinate of {_loc})
+    set {_totalStep} to {_stepY} * {_everyN}
+
+    wait 1 tick
+    set {_placed} to 0
+    loop {_count} times:
+        set {_i} to loop-number - 1
+        set {_curBlockY} to {_baseY} + ({_i} * {_totalStep})
+        set {_floorY} to {_curBlockY} + {_offsetY}
+        set {_bLoc} to location({_bx}, {_curBlockY}, {_bz}, {_w})
+        set {_bKey} to "%{_wName}%_%{_bx}%_%{_curBlockY}%_%{_bz}%"
+
+        evatorEnsureFloor({_id}, {_floorY})
+
+        if {_mode} is "redstone":
+            if {evator::cur_y::%{_id}%} is {_floorY}:
+                set block at {_bLoc} to redstone block
+            else:
+                set block at {_bLoc} to iron block
+        else:
+            set block at {_bLoc} to lodestone
+
+        set yaml value "buttons.%{_bKey}%" from "elevators_db" to "%{_id}%|%{_floorY}%|%{_mode}%"
+        set yaml value "button_locs.%{_bKey}%.w" from "elevators_db" to {_wName}
+        set yaml value "button_locs.%{_bKey}%.x" from "elevators_db" to {_bx}
+        set yaml value "button_locs.%{_bKey}%.y" from "elevators_db" to {_curBlockY}
+        set yaml value "button_locs.%{_bKey}%.z" from "elevators_db" to {_bz}
+
+        set {_existing::*} to yaml list "elevators.%{_id}%.buttons" from "elevators_db"
+        if {_existing::*} does not contain {_bKey}:
+            add {_bKey} to yaml list "elevators.%{_id}%.buttons" from "elevators_db"
+
+        add 1 to {_placed}
+
+    save yaml "elevators_db"
+    evatorUpdateLiftHolo({_id}, "idle", "", 0)
+    evatorRefreshButtons({_id})
+
+    evatorSound(player, "entity.player.levelup", 0.9, 1.2)
+    evatorSound(player, "block.amethyst_block.chime", 0.9, 1.3)
+    send mini message from "" to player
+    if {_mode} is "redstone":
+        send mini message from "<#A8E6CF><b>☺ Установлено %{_placed}% редстоун-индикаторов для лифта «%{_id}%»! ⚡</b>" to player
+    else:
+        send mini message from "<#A8E6CF><b>☺ Установлено %{_placed}% кнопок вызова для лифта «%{_id}%»! ✈</b>" to player
+    send mini message from "<#E2ECE9>Этажи автоматически синхронизированы. <click:run_command:'/evator clearbuttons %{_id}%'><hover:show_text:'<#FF8B94>Удалить все кнопки этого лифта'><#FF8B94><u><b>[Очистить кнопки ✂]</b></u></hover></click>" to player
+    send mini message from "" to player
+
+# ==========================================
+# ВЗАИМОДЕЙСТВИЕ В МИРЕ (ПКМ, ПРЫЖОК, SHIFT, ЗАЩИТА)
+# ==========================================
+
+on break:
+    set {_bKey} to "%name of world of event-block%_%floor(x-coordinate of event-block)%_%floor(y-coordinate of event-block)%_%floor(z-coordinate of event-block)%"
+    set {_btnData} to yaml value "buttons.%{_bKey}%" from "elevators_db"
+    if {_btnData} is set:
+        if player has permission "evator.admin":
+            if player is sneaking:
+                set {_p::*} to {_btnData} split at "|"
+                set {_id} to {_p::1}
+                if {evator::holo_btn::%{_bKey}%} is set:
+                    kill {evator::holo_btn::%{_bKey}%}
+                    delete {evator::holo_btn::%{_bKey}%}
+                evatorKillNearbyHolos(location(floor(x-coordinate of event-block) + 0.5, floor(y-coordinate of event-block) + 1.15, floor(z-coordinate of event-block) + 0.5, world of event-block))
+                delete yaml value "buttons.%{_bKey}%" from "elevators_db"
+                delete yaml value "button_locs.%{_bKey}%" from "elevators_db"
+                remove {_bKey} from yaml list "elevators.%{_id}%.buttons" from "elevators_db"
+                save yaml "elevators_db"
+                evatorSound(player, "entity.item.break", 0.7, 1.1)
+                send mini message from "<#A8E6CF>☺ Кнопка лифта <#FFB7C5>%{_id}% <#A8E6CF>удалена!" to player
+                stop
+        if yaml value "settings.protect_blocks" from "elevators_db" is true:
+            cancel event
+            evatorSound(player, "entity.villager.no", 0.7, 1.0)
+            send mini message from "<#FF8B94>☹ Эта кнопка лифта защищена! <#FFDAC1>(Админу: Shift + ЛКМ чтобы убрать)" to player
+            stop
+
+    if yaml value "settings.protect_blocks" from "elevators_db" is not true:
+        stop
+    set {_ev} to evatorAtBlock(event-block)
+    if {_ev} is not "":
+        cancel event
+        evatorSound(player, "entity.villager.no", 0.7, 1.0)
+        send mini message from "<#FF8B94>☹ Платформа лифта <#FFB7C5>%{_ev}% <#FF8B94>защищена! Удалить: <#89CFF0>/evator delete %{_ev}%" to player
+
+on right click:
+    stop if clicked block is not set
+    set {_u} to uuid of player
+    if {evator::click_cd::%{_u}%} is set:
+        stop if difference between {evator::click_cd::%{_u}%} and now < 0.35 seconds
+
+    set {_bKey} to "%name of world of clicked block%_%floor(x-coordinate of clicked block)%_%floor(y-coordinate of clicked block)%_%floor(z-coordinate of clicked block)%"
+    set {_btnData} to yaml value "buttons.%{_bKey}%" from "elevators_db"
+    if {_btnData} is set:
+        cancel event
+        set {evator::click_cd::%{_u}%} to now
+        set {_p::*} to {_btnData} split at "|"
+        set {_id} to {_p::1}
+        set {_fy} to {_p::2} parsed as number
+        if yaml value "elevators.%{_id}%.size" from "elevators_db" is set:
+            evatorMove({_id}, {_fy}, player)
+        stop
+
+    set {_ev} to evatorAtBlock(clicked block)
+    if {_ev} is not "":
+        set {_cx} to yaml value "elevators.%{_ev}%.x" from "elevators_db"
+        set {_cz} to yaml value "elevators.%{_ev}%.z" from "elevators_db"
+        set {_isCenter} to false
+        if floor(x-coordinate of clicked block) is {_cx}:
+            set {_isCenter} to true if floor(z-coordinate of clicked block) is {_cz}
+        if {_isCenter} is true:
+            cancel event
+            set {evator::click_cd::%{_u}%} to now
+            openPlayerFloorMenu(player, {_ev})
+        else if player's tool is air:
+            cancel event
+            set {evator::click_cd::%{_u}%} to now
+            openPlayerFloorMenu(player, {_ev})
+
+on jump:
+    stop if yaml value "settings.enabled" from "elevators_db" is not true
+    stop if yaml value "settings.jump_sneak_control" from "elevators_db" is not true
+    set {_ev} to evatorUnderPlayer(player)
+    stop if {_ev} is ""
+    stop if {evator::moving::%{_ev}%} is true
+    set {_curY} to {evator::cur_y::%{_ev}%}
+    set {_floors::*} to evatorGetSortedFloors({_ev})
+    loop {_floors::*}:
+        set {_p::*} to loop-value split at "|"
+        set {_fy} to {_p::1} parsed as number
+        if {_fy} > {_curY}:
+            evatorMove({_ev}, {_fy}, player)
+            stop
+
+on sneak toggle:
+    stop if player is sneaking
+    stop if yaml value "settings.enabled" from "elevators_db" is not true
+    stop if yaml value "settings.jump_sneak_control" from "elevators_db" is not true
+    set {_ev} to evatorUnderPlayer(player)
+    stop if {_ev} is ""
+    stop if {evator::moving::%{_ev}%} is true
+    set {_curY} to {evator::cur_y::%{_ev}%}
+    set {_floors::*} to evatorGetSortedFloors({_ev})
+    set {_bestY} to -9999
+    loop {_floors::*}:
+        set {_p::*} to loop-value split at "|"
+        set {_fy} to {_p::1} parsed as number
+        if {_fy} < {_curY}:
+            set {_bestY} to {_fy}
+    evatorMove({_ev}, {_bestY}, player) if {_bestY} is not -9999
+
+# ==========================================
+# КОМАНДА /evator И TAB-COMPLETE
+# ==========================================
+
+command /evator [<text>] [<text>] [<text>] [<text>] [<text>] [<text>]:
+    permission: evator.admin
+    permission message: <#FF8B94>☹ У тебя нет прав на управление лифтами!
+    trigger:
+        if arg-1 is not set:
+            openAdminEvatorMain(player)
+            stop
+
+        if arg-1 is "menu":
+            openAdminEvatorMain(player)
+            stop
+
+        if arg-1 is "settings":
+            openAdminEvatorSettings(player)
+            stop
+
+        if arg-1 is "buttone" or "button" or "redstone":
+            set {_stepY} to arg-2 parsed as integer
+            set {_everyN} to arg-3 parsed as integer
+            set {_offsetY} to arg-4 parsed as integer
+            set {_count} to arg-5 parsed as integer
+
+            if {_stepY} is not set:
+                evatorSound(player, "entity.villager.no", 0.7, 1.0)
+                send mini message from "" to player
+                send mini message from "<#FF8B94>☹ Формат команды:" to player
+                send mini message from "<#89CFF0>/evator buttone <шаг_Y> <каждые_N_этажей> <разница_Y> <кол-во_этажей> [redstone]" to player
+                send mini message from "<#E2ECE9>Пример (кнопки): <#A8E6CF>/evator buttone 5 1 -1 5" to player
+                send mini message from "<#E2ECE9>Пример (редстоун): <#FF8B94>/evator buttone 5 1 -1 5 redstone" to player
+                send mini message from "" to player
+                stop
+            if {_everyN} is not set:
+                set {_everyN} to 1
+            if {_offsetY} is not set:
+                set {_offsetY} to -1
+            if {_count} is not set:
+                set {_count} to 5
+
+            if {_stepY} is 0:
+                evatorSound(player, "entity.villager.no", 0.7, 1.0)
+                send mini message from "<#FF8B94>☹ Шаг по Y не может быть равен 0! Укажи, например, <#A8E6CF>5 <#FF8B94>(вверх) или <#A8E6CF>-5 <#FF8B94>(вниз)." to player
+                stop
+            if {_everyN} < 1:
+                evatorSound(player, "entity.villager.no", 0.7, 1.0)
+                send mini message from "<#FF8B94>☹ Периодичность этажей должна быть не меньше 1!" to player
+                stop
+            if {_count} < 1:
+                evatorSound(player, "entity.villager.no", 0.7, 1.0)
+                send mini message from "<#FF8B94>☹ Количество этажей должно быть от 1 до 30!" to player
+                stop
+            if {_count} > 30:
+                evatorSound(player, "entity.villager.no", 0.7, 1.0)
+                send mini message from "<#FF8B94>☹ За один раз можно поставить максимум 30 этажей!" to player
+                stop
+
+            set {_mode} to "button"
+            if arg-1 is "redstone":
+                set {_mode} to "redstone"
+            else if arg-6 is "redstone" or "редстоун" or "rs":
+                set {_mode} to "redstone"
+
+            evatorGiveButtonTool(player, {_stepY}, {_everyN}, {_offsetY}, {_count}, {_mode})
+            stop
+
+        if arg-1 is "clearbuttons":
+            if arg-2 is not set:
+                evatorSound(player, "entity.villager.no", 0.7, 1.0)
+                send mini message from "<#FF8B94>☹ Укажи название лифта: <#89CFF0>/evator clearbuttons <лифт>" to player
+                stop
+            set {_id} to arg-2 in lowercase
+            if yaml value "elevators.%{_id}%.size" from "elevators_db" is not set:
+                evatorSound(player, "entity.villager.no", 0.7, 1.0)
+                send mini message from "<#FF8B94>☹ Лифт <#FFB7C5>%{_id}% <#FF8B94>не найден!" to player
+                stop
+            evatorDeleteAllButtons({_id})
+            evatorSound(player, "entity.item.break", 0.8, 1.0)
+            send mini message from "<#A8E6CF>☺ Все кнопки, редстоун-блоки и их голограммы удалены у лифта <#FFB7C5>%{_id}%<#A8E6CF>!" to player
+            stop
+
+        if arg-1 is "create":
+            if arg-2 is not set:
+                evatorSound(player, "entity.villager.no", 0.7, 1.0)
+                send mini message from "<#FF8B94>☹ Укажи название и размер: <#89CFF0>/evator create <название> <3|5|7> [высота_потолка]" to player
+                stop
+            if arg-3 is not set:
+                evatorSound(player, "entity.villager.no", 0.7, 1.0)
+                send mini message from "<#FF8B94>☹ Укажи нечётный размер платформы! Например: <#89CFF0>/evator create %arg-2% 3 [высота_потолка]" to player
+                stop
+
+            set {_id} to arg-2 in lowercase
+            if {_id} contains "." or "|":
+                evatorSound(player, "entity.villager.no", 0.7, 1.0)
+                send mini message from "<#FF8B94>☹ В названии нельзя использовать '.' и '|'!" to player
+                stop
+            if yaml value "elevators.%{_id}%.size" from "elevators_db" is set:
+                evatorSound(player, "entity.villager.no", 0.7, 1.0)
+                send mini message from "<#FF8B94>☹ Лифт <#FFB7C5>%{_id}% <#FF8B94>уже существует!" to player
+                stop
+
+            set {_ceilingHeight} to 3
+            if arg-4 is set:
+                set {_ceilingHeight} to arg-4 parsed as integer
+                if {_ceilingHeight} is not set:
+                    evatorSound(player, "entity.villager.no", 0.7, 1.0)
+                    send mini message from "<#FF8B94>☹ Высота потолка должна быть целым числом не меньше 3 блоков!" to player
+                    stop
+                if {_ceilingHeight} < 3:
+                    evatorSound(player, "entity.villager.no", 0.7, 1.0)
+                    send mini message from "<#FF8B94>☹ Высота потолка должна быть не меньше 3 блоков!" to player
+                    stop
+
+            set {_size} to evatorParseSize(arg-3)
+            if {_size} is -1:
+                evatorSound(player, "entity.villager.no", 0.7, 1.0)
+                send mini message from "<#FF8B94>☹ Некорректный размер! Укажи нечётное число: <#89CFF0>3, 5, 7 <#FF8B94>(или 3x3, 5x5)." to player
+                stop
+            if {_size} is -2:
+                evatorSound(player, "entity.villager.no", 0.7, 1.0)
+                send mini message from "<#FF8B94>☹ Платформа должна быть квадратной (3x3, 5x5)!" to player
+                stop
+            if {_size} is -3:
+                evatorSound(player, "entity.villager.no", 0.7, 1.0)
+                send mini message from "<#FF8B94>☹ Размер должен быть <b>НЕЧЁТНЫМ</b>! 4x4 и 6x6 нельзя — используй <#A8E6CF>3, 5, 7, 9<#FF8B94>." to player
+                stop
+            if {_size} is -4:
+                evatorSound(player, "entity.villager.no", 0.7, 1.0)
+                send mini message from "<#FF8B94>☹ Минимальный размер — <#89CFF0>3x3<#FF8B94>!" to player
+                stop
+            if {_size} is -5:
+                set {_max} to yaml value "settings.max_size" from "elevators_db"
+                evatorSound(player, "entity.villager.no", 0.7, 1.0)
+                send mini message from "<#FF8B94>☹ Максимум в настройках: <#89CFF0>%{_max}%x%{_max}%<#FF8B94>." to player
+                stop
+
+            set {_cx} to floor(x-coordinate of player)
+            set {_cy} to floor(y-coordinate of player) - 1
+            set {_cz} to floor(z-coordinate of player)
+            set {_wName} to name of world of player
+
+            set yaml value "elevators.%{_id}%.world" from "elevators_db" to {_wName}
+            set yaml value "elevators.%{_id}%.x" from "elevators_db" to {_cx}
+            set yaml value "elevators.%{_id}%.z" from "elevators_db" to {_cz}
+            set yaml value "elevators.%{_id}%.current_y" from "elevators_db" to {_cy}
+            set yaml value "elevators.%{_id}%.size" from "elevators_db" to {_size}
+            set yaml value "elevators.%{_id}%.ceiling_height" from "elevators_db" to {_ceilingHeight}
+            set yaml value "elevators.%{_id}%.style" from "elevators_db" to "quartz"
+            add "%{_cy}%|1 этаж" to yaml list "elevators.%{_id}%.floors" from "elevators_db"
+            add {_id} to yaml list "elevator_names" from "elevators_db"
+            save yaml "elevators_db"
+
+            set {evator::cur_y::%{_id}%} to {_cy}
+            evatorBuildPlatform({_id}, {_cy}, false)
+            evatorBuildCeiling({_id}, {_cy}, false)
+            evatorUpdateLiftHolo({_id}, "idle", "", 0)
+
+            evatorSound(player, "entity.player.levelup", 0.9, 1.1)
+            evatorSound(player, "block.amethyst_block.chime", 0.9, 1.2)
+            send mini message from "" to player
+            send mini message from "<#A8E6CF><b>☺ Лифт «%{_id}%» (%{_size}%x%{_size}%) создан!</b>" to player
+            send mini message from "<#E2ECE9>Платформа и голограмма установлены на <#C7CEEA>Y: %{_cy}%. Потолок: <#C7CEEA>%{_ceilingHeight}% блок." to player
+            send mini message from "<click:suggest_command:'/evator buttone 5 1 -1 5'><hover:show_text:'<#B5EAD7>Выдать установщик кнопок'><#B5EAD7><u><b>[Кнопки ⛀]</b></u></hover></click>  <click:suggest_command:'/evator buttone 5 1 -1 5 redstone'><hover:show_text:'<#FF8B94>Выдать редстоун-индикатор'><#FF8B94><u><b>[Редстоун ⚡]</b></u></hover></click>  <click:run_command:'/evator menu'><hover:show_text:'<#C7CEEA>Открыть меню'><#C7CEEA><u><b>[Меню ۞]</b></u></hover></click>" to player
+            send mini message from "" to player
+            stop
+
+        if arg-1 is "addfloor":
+            if arg-2 is not set:
+                evatorSound(player, "entity.villager.no", 0.7, 1.0)
+                send mini message from "<#FF8B94>☹ Использование: <#89CFF0>/evator addfloor <название> <имя_этажа>" to player
+                stop
+            set {_id} to arg-2 in lowercase
+            if yaml value "elevators.%{_id}%.size" from "elevators_db" is not set:
+                evatorSound(player, "entity.villager.no", 0.7, 1.0)
+                send mini message from "<#FF8B94>☹ Лифт <#FFB7C5>%{_id}% <#FF8B94>не найден!" to player
+                stop
+            set {_fy} to floor(y-coordinate of player) - 1
+            set {_floors::*} to yaml list "elevators.%{_id}%.floors" from "elevators_db"
+            loop {_floors::*}:
+                set {_p::*} to loop-value split at "|"
+                if ({_p::1} parsed as number) is {_fy}:
+                    evatorSound(player, "entity.villager.no", 0.7, 1.0)
+                    send mini message from "<#FF8B94>☹ Этаж на Y:%{_fy}% уже есть!" to player
+                    stop
+            set {_fname} to arg-3
+            if arg-4 is set:
+                set {_fname} to "%arg-3% %arg-4%"
+            set {_fname} to "%(size of {_floors::*}) + 1% этаж" if {_fname} is not set
+            replace all "|" with "" in {_fname}
+            add "%{_fy}%|%{_fname}%" to yaml list "elevators.%{_id}%.floors" from "elevators_db"
+            save yaml "elevators_db"
+            evatorUpdateLiftHolo({_id}, "idle", "", 0)
+            evatorSound(player, "entity.player.levelup", 0.8, 1.2)
+            send mini message from "<#A8E6CF>☺ Этаж <#FFFFFF>«%{_fname}%» <#C7CEEA>(Y:%{_fy}%) <#A8E6CF>добавлен к лифту <#FFB7C5>%{_id}%<#A8E6CF>!" to player
+            stop
+
+        # --- УДАЛЕНИЕ ЭТАЖА ---
+        if arg-1 is "delfloor" or "removefloor":
+            if arg-2 is not set:
+                evatorSound(player, "entity.villager.no", 0.7, 1.0)
+                send mini message from "<#FF8B94>☹ Использование: <#89CFF0>/evator delfloor <лифт> [высота_Y | название]" to player
+                stop
+            set {_id} to arg-2 in lowercase
+            if yaml value "elevators.%{_id}%.size" from "elevators_db" is not set:
+                evatorSound(player, "entity.villager.no", 0.7, 1.0)
+                send mini message from "<#FF8B94>☹ Лифт <#FFB7C5>%{_id}% <#FF8B94>не найден!" to player
+                stop
+            if {evator::moving::%{_id}%} is true:
+                evatorSound(player, "entity.villager.no", 0.7, 1.0)
+                send mini message from "<#FF8B94>☹ Дождись остановки лифта!" to player
+                stop
+
+            set {_floors::*} to evatorGetSortedFloors({_id})
+            if size of {_floors::*} <= 1:
+                evatorSound(player, "entity.villager.no", 0.7, 1.0)
+                send mini message from "<#FF8B94>☹ Нельзя удалить последний оставшийся этаж лифта!" to player
+                stop
+
+            set {_targetEntry} to ""
+            if arg-3 is not set:
+                set {_py} to floor(y-coordinate of player) - 1
+                loop {_floors::*}:
+                    set {_p::*} to loop-value split at "|"
+                    if ({_p::1} parsed as number) is {_py}:
+                        set {_targetEntry} to loop-value
+                        exit loop
+                if {_targetEntry} is "":
+                    evatorSound(player, "ui.button.click", 0.7, 1.0)
+                    send mini message from "" to player
+                    send mini message from "<#FFB7C5><b>★ Выбери этаж лифта «%{_id}%» для удаления:</b>" to player
+                    loop {_floors::*}:
+                        set {_p::*} to loop-value split at "|"
+                        set {_fy} to {_p::1}
+                        set {_fname} to {_p::2}
+                        send mini message from "<#E2ECE9>◆ <#FFFFFF>%{_fname}% <#C7CEEA>(Y:%{_fy}%)  <click:run_command:'/evator delfloor %{_id}% %{_fy}%'><hover:show_text:'<#FF8B94>Нажми, чтобы удалить этот этаж'><#FF8B94><u><b>[Удалить ☠]</b></u></hover></click>" to player
+                    send mini message from "" to player
+                    stop
+            else:
+                set {_search} to arg-3
+                if arg-4 is set:
+                    set {_search} to "%arg-3% %arg-4%"
+                set {_argY} to {_search} parsed as integer
+                set {_searchLow} to {_search} in lowercase
+                replace all "_" with " " in {_searchLow}
+                loop {_floors::*}:
+                    set {_p::*} to loop-value split at "|"
+                    set {_fy} to {_p::1} parsed as number
+                    set {_fnameLow} to {_p::2} in lowercase
+                    if {_argY} is set:
+                        if {_fy} is {_argY}:
+                            set {_targetEntry} to loop-value
+                            exit loop
+                    else if {_fnameLow} is {_searchLow}:
+                        set {_targetEntry} to loop-value
+                        exit loop
+                if {_targetEntry} is "":
+                    evatorSound(player, "entity.villager.no", 0.7, 1.0)
+                    send mini message from "<#FF8B94>☹ Этаж <#FFFFFF>«%{_search}%» <#FF8B94>не найден у лифта <#FFB7C5>%{_id}%<#FF8B94>!" to player
+                    stop
+
+            set {_tp::*} to {_targetEntry} split at "|"
+            set {_delY} to {_tp::1} parsed as number
+            set {_delName} to {_tp::2}
+
+            remove {_targetEntry} from yaml list "elevators.%{_id}%.floors" from "elevators_db"
+            evatorUnlinkFloorButtons({_id}, {_delY})
+            save yaml "elevators_db"
+            evatorUpdateLiftHolo({_id}, "idle", "", 0)
+            evatorRefreshButtons({_id})
+            evatorSound(player, "entity.item.break", 0.8, 1.0)
+            send mini message from "<#A8E6CF>☺ Этаж <#FFFFFF>«%{_delName}%» <#C7CEEA>(Y:%{_delY}%) <#A8E6CF>удалён у лифта <#FFB7C5>%{_id}%<#A8E6CF>!" to player
+            stop
+
+        if arg-1 is "setbutton":
+            if arg-2 is not set:
+                evatorSound(player, "entity.villager.no", 0.7, 1.0)
+                send mini message from "<#FF8B94>☹ Смотри на блок и пиши: <#89CFF0>/evator setbutton <лифт> <высота_Y> [redstone]" to player
+                stop
+            set {_id} to arg-2 in lowercase
+            if yaml value "elevators.%{_id}%.size" from "elevators_db" is not set:
+                evatorSound(player, "entity.villager.no", 0.7, 1.0)
+                send mini message from "<#FF8B94>☹ Лифт <#FFB7C5>%{_id}% <#FF8B94>не найден!" to player
+                stop
+            set {_fy} to arg-3 parsed as integer
+            set {_fy} to floor(y-coordinate of player) - 1 if {_fy} is not set
+            set {_tb} to target block of player
+            if {_tb} is not set:
+                evatorSound(player, "entity.villager.no", 0.7, 1.0)
+                send mini message from "<#FF8B94>☹ Посмотри на блок/кнопку!" to player
+                stop
+            if distance between player and {_tb} > 6:
+                evatorSound(player, "entity.villager.no", 0.7, 1.0)
+                send mini message from "<#FF8B94>☹ Подойди ближе к блоку!" to player
+                stop
+
+            set {_mode} to "redstone" if arg-4 is "redstone" or "редстоун" else "button"
+            set {_wName} to name of world of {_tb}
+            set {_bx} to floor(x-coordinate of {_tb})
+            set {_by} to floor(y-coordinate of {_tb})
+            set {_bz} to floor(z-coordinate of {_tb})
+            set {_bKey} to "%{_wName}%_%{_bx}%_%{_by}%_%{_bz}%"
+
+            evatorEnsureFloor({_id}, {_fy})
+            set yaml value "buttons.%{_bKey}%" from "elevators_db" to "%{_id}%|%{_fy}%|%{_mode}%"
+            set yaml value "button_locs.%{_bKey}%.w" from "elevators_db" to {_wName}
+            set yaml value "button_locs.%{_bKey}%.x" from "elevators_db" to {_bx}
+            set yaml value "button_locs.%{_bKey}%.y" from "elevators_db" to {_by}
+            set yaml value "button_locs.%{_bKey}%.z" from "elevators_db" to {_bz}
+            set {_existing::*} to yaml list "elevators.%{_id}%.buttons" from "elevators_db"
+            if {_existing::*} does not contain {_bKey}:
+                add {_bKey} to yaml list "elevators.%{_id}%.buttons" from "elevators_db"
+            save yaml "elevators_db"
+            evatorRefreshButtons({_id})
+            evatorSound(player, "entity.player.levelup", 0.8, 1.3)
+            send mini message from "<#A8E6CF>☺ Блок привязан к лифту <#FFB7C5>%{_id}% <#C7CEEA>(этаж Y:%{_fy}%, режим: %{_mode}%)<#A8E6CF>!" to player
+            stop
+
+        if arg-1 is "style":
+            set {_id} to arg-2 in lowercase
+            if yaml value "elevators.%{_id}%.size" from "elevators_db" is not set:
+                evatorSound(player, "entity.villager.no", 0.7, 1.0)
+                send mini message from "<#FF8B94>☹ Использование: <#89CFF0>/evator style <лифт> <quartz|amethyst|iron|gold>" to player
+                stop
+            if arg-3 is not "quartz" or "amethyst" or "iron" or "gold":
+                evatorSound(player, "entity.villager.no", 0.7, 1.0)
+                send mini message from "<#FF8B94>☹ Стили: <#89CFF0>quartz, amethyst, iron, gold" to player
+                stop
+            if {evator::moving::%{_id}%} is true:
+                evatorSound(player, "entity.villager.no", 0.7, 1.0)
+                send mini message from "<#FF8B94>☹ Дождись остановки лифта!" to player
+                stop
+            set yaml value "elevators.%{_id}%.style" from "elevators_db" to arg-3
+            save yaml "elevators_db"
+            evatorBuildPlatform({_id}, {evator::cur_y::%{_id}%}, false)
+            evatorSound(player, "block.amethyst_block.chime", 0.8, 1.2)
+            send mini message from "<#A8E6CF>☺ Стиль лифта <#FFB7C5>%{_id}% <#A8E6CF>изменён на <#FFDAC1>%evatorStyleName(arg-3)%<#A8E6CF>!" to player
+            stop
+
+        if arg-1 is "call":
+            set {_id} to arg-2 in lowercase
+            set {_fy} to arg-3 parsed as integer
+            if yaml value "elevators.%{_id}%.size" from "elevators_db" is not set:
+                evatorSound(player, "entity.villager.no", 0.7, 1.0)
+                send mini message from "<#FF8B94>☹ Лифт не найден!" to player
+                stop
+            if {_fy} is not set:
+                openPlayerFloorMenu(player, {_id})
+                stop
+            evatorMove({_id}, {_fy}, player)
+            stop
+
+        if arg-1 is "delete":
+            set {_id} to arg-2 in lowercase
+            if yaml value "elevators.%{_id}%.size" from "elevators_db" is not set:
+                evatorSound(player, "entity.villager.no", 0.7, 1.0)
+                send mini message from "<#FF8B94>☹ Лифт <#FFB7C5>%{_id}% <#FF8B94>не найден!" to player
+                stop
+            if {evator::moving::%{_id}%} is true:
+                evatorSound(player, "entity.villager.no", 0.7, 1.0)
+                send mini message from "<#FF8B94>☹ Дождись остановки лифта!" to player
+                stop
+            evatorDeleteAllButtons({_id})
+            if {evator::holo_lift::%{_id}%} is set:
+                kill {evator::holo_lift::%{_id}%}
+                delete {evator::holo_lift::%{_id}%}
+            evatorBuildPlatform({_id}, {evator::cur_y::%{_id}%}, true)
+            evatorBuildCeiling({_id}, {evator::cur_y::%{_id}%}, true)
+            delete yaml value "elevators.%{_id}%" from "elevators_db"
+            remove {_id} from yaml list "elevator_names" from "elevators_db"
+            delete {evator::cur_y::%{_id}%}
+            save yaml "elevators_db"
+            evatorSound(player, "entity.item.break", 0.8, 0.9)
+            send mini message from "<#A8E6CF>☺ Лифт <#FFB7C5>%{_id}%<#A8E6CF>, его платформа, кнопки и голограммы удалены!" to player
+            stop
+
+        if arg-1 is "list":
+            set {_names::*} to yaml list "elevator_names" from "elevators_db"
+            evatorSound(player, "ui.button.click", 0.7, 1.1)
+            send mini message from "" to player
+            send mini message from "<#FFB7C5><b>✈ Список лифтов (%size of {_names::*}%)</b>" to player
+            if size of {_names::*} is 0:
+                send mini message from "<#E2ECE9>Пока нет ни одного лифта." to player
+            else:
+                loop {_names::*}:
+                    set {_id} to loop-value
+                    set {_sz} to yaml value "elevators.%{_id}%.size" from "elevators_db"
+                    set {_cy} to {evator::cur_y::%{_id}%}
+                    send mini message from "<#E2ECE9>◆ <#FFFFFF><b>%{_id}%</b> <#C7CEEA>(%{_sz}%x%{_sz}%, Y:%{_cy}%)  <click:run_command:'/evator call %{_id}%'><hover:show_text:'<#B5EAD7>Открыть этажи'><#B5EAD7><u><b>[Этажи ⛀]</b></u></hover></click>  <click:run_command:'/evator clearbuttons %{_id}%'><hover:show_text:'<#FFDAC1>Удалить кнопки'><#FFDAC1><u><b>[Кнопки ✂]</b></u></hover></click>  <click:run_command:'/evator delete %{_id}%'><hover:show_text:'<#FF8B94>Удалить лифт'><#FF8B94><u><b>[Удалить ☠]</b></u></hover></click>" to player
+            send mini message from "" to player
+            stop
+
+        if arg-1 is "reload":
+            unload yaml "elevators_db"
+            load yaml "/home/container/database/elevators.yml" as "elevators_db"
+            set {_names::*} to yaml list "elevator_names" from "elevators_db"
+            loop {_names::*}:
+                evatorUpdateLiftHolo(loop-value, "idle", "", 0)
+                evatorRefreshButtons(loop-value)
+            evatorSound(player, "entity.player.levelup", 0.8, 1.2)
+            send mini message from "<#A8E6CF>☺ База elevators.yml и все голограммы обновлены!" to player
+            stop
+
+        evatorSound(player, "entity.villager.no", 0.7, 1.0)
+        send mini message from "<#FF8B94>☹ Неизвестная команда! Используй: <#89CFF0>/evator [create|buttone|redstone|addfloor|delfloor|setbutton|clearbuttons|style|call|list|menu|settings|delete|reload]" to player
+
+on tab complete of "/evator":
+    set tab completions for position 1 to "create", "buttone", "redstone", "addfloor", "delfloor", "setbutton", "clearbuttons", "style", "call", "list", "menu", "settings", "delete" and "reload"
+    if tab arg-1 is "create":
+        set tab completions for position 2 to "spawn", "lobby", "tower" and "mine"
+        set tab completions for position 3 to "3", "5", "7", "3x3" and "5x5"
+        set tab completions for position 4 to "3", "4", "5" and "6"
+    else if tab arg-1 is "buttone" or "button" or "redstone":
+        set tab completions for position 2 to "4", "5", "6", "-4" and "-5"
+        set tab completions for position 3 to "1" and "2"
+        set tab completions for position 4 to "-2", "-1", "0" and "1"
+        set tab completions for position 5 to "3", "5", "8" and "10"
+        if tab arg-1 is "buttone" or "button":
+            set tab completions for position 6 to "redstone"
+    else if tab arg-1 is "addfloor" or "delfloor" or "removefloor" or "setbutton" or "clearbuttons" or "style" or "call" or "delete":
+        set {_names::*} to yaml list "elevator_names" from "elevators_db"
+        set tab completions for position 2 to {_names::*}
+        if tab arg-1 is "style":
+            set tab completions for position 3 to "quartz", "amethyst", "iron" and "gold"
+        else if tab arg-1 is "addfloor":
+            set tab completions for position 3 to "2_этаж", "3_этаж" and "Крыша"
+        else if tab arg-1 is "delfloor" or "removefloor" or "setbutton" or "call":
+            set {_tid} to tab arg-2 in lowercase
+            set {_fl::*} to yaml list "elevators.%{_tid}%.floors" from "elevators_db"
+            clear {_ys::*}
+            loop {_fl::*}:
+                set {_p::*} to loop-value split at "|"
+                add {_p::1} to {_ys::*}
+            set tab completions for position 3 to {_ys::*}
+            if tab arg-1 is "setbutton":
+                set tab completions for position 4 to "redstone"
